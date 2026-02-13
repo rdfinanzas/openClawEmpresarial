@@ -3,7 +3,7 @@ import type { OnboardOptions } from "./onboard-types.js";
 import { defaultRuntime } from "../runtime.js";
 import { restoreTerminalState } from "../terminal/restore.js";
 import { createClackPrompter } from "../wizard/clack-prompter.js";
-import { runOnboardingWizard } from "../wizard/onboarding.js";
+import { runUnifiedOnboarding } from "../wizard/onboarding-unified.js";
 import { WizardCancelledError } from "../wizard/prompts.js";
 
 export async function runInteractiveOnboarding(
@@ -12,7 +12,8 @@ export async function runInteractiveOnboarding(
 ) {
   const prompter = createClackPrompter();
   try {
-    await runOnboardingWizard(opts, runtime, prompter);
+    // Usar el nuevo wizard unificado que incluye onboard + enterprise
+    await runUnifiedOnboarding(opts, runtime, prompter);
   } catch (err) {
     if (err instanceof WizardCancelledError) {
       runtime.exit(0);
