@@ -1,0 +1,42 @@
+{
+  "superadmin": {
+    "enabled": true,
+    "telegramUserId": 123456789,
+    "panel": {
+      "enabled": true,
+      "sessionTimeoutMinutes": 60
+    },
+    "credentials": {
+      "username": "admin",
+      "passwordHash": "$2b$10$YourHashedPasswordHere"
+    },
+    "telegram": {
+      "codeExpiryMinutes": 5
+    },
+    "rootAuth": {
+      "enabled": true,
+      "criticalOperations": ["file_delete", "config_write", "system_restart"],
+      "requestExpiryMinutes": 10
+    },
+    "monitoring": {
+      "telegramAlerts": true,
+      "alertCooldownMinutes": 5
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "YOUR_BOT_TOKEN_HERE",
+      "accounts": {
+        "default": {
+          "default": true,
+          "enabled": true
+        }
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "trustedProxies": ["127.0.0.1", "::1"]
+  }
+}

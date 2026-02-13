@@ -1,0 +1,50 @@
+{
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "superadmin": {
+      "enabled": true,
+      "telegramUserId": 123456789
+    }
+  },
+  "superadmin": {
+    "enabled": true,
+    "telegramUserId": 123456789,
+    "panel": {
+      "enabled": true,
+      "sessionTimeoutMinutes": 60
+    },
+    "credentials": {
+      "username": "admin",
+      "passwordHash": "$2b$10$YourHashedPasswordHere"
+    },
+    "rootAuth": {
+      "enabled": true,
+      "criticalOperations": ["file_delete", "config_write", "system_restart"],
+      "requestExpiryMinutes": 10
+    },
+    "monitoring": {
+      "telegramAlerts": true,
+      "alertCooldownMinutes": 5
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": false,
+      "botToken": "PON_TU_TOKEN_AQUI",
+      "accounts": {
+        "default": {
+          "default": true,
+          "enabled": true
+        }
+      }
+    }
+  },
+  "agents": {
+    "default": {
+      "model": "anthropic:claude-3-5-sonnet",
+      "systemPrompt": "Eres un asistente útil."
+    }
+  }
+}

@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestión de APIs - OpenClaw Admin</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      color: #1a202c;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      color: #718096;
+      font-size: 1rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+
+    .btn-secondary:hover {
+      background: #667eea;
+      color: white;
+    }
+
+    .api-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .api-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .api-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .api-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+    }
+
+    .api-card.disabled {
+      opacity: 0.6;
+    }
+
+    .api-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 1rem;
+    }
+
+    .api-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 0.25rem;
+    }
+
+    .api-id {
+      font-size: 0.875rem;
+      color: #718096;
+      font-family: 'Courier New', monospace;
+    }
+
+    .api-status {
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-enabled {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+
+    .status-disabled {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+
+    .api-description {
+      color: #4a5568;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+
+    .api-meta {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      color: #718096;
+    }
+
+    .meta-icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    .api-endpoints {
+      margin-bottom: 1rem;
+    }
+
+    .endpoints-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 0.5rem;
+    }
+
+    .endpoint-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .endpoint-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      color: #718096;
+    }
+
+    .method-badge {
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.625rem;
+    }
+
+    .method-get { background: #bee3f8; color: #2c5282; }
+    .method-post { background: #c6f6d5; color: #22543d; }
+    .method-put { background: #feebc8; color: #7c2d12; }
+    .method-delete { background: #fed7d7; color: #742a2a; }
+
+    .api-tags {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .tag {
+      padding: 0.25rem 0.75rem;
+      background: #edf2f7;
+      color: #4a5568;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .api-actions {
+      display: flex;
+      gap: 0.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .btn-small {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      flex: 1;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .modal-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a202c;
+    }
+
+    .btn-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #718096;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-close:hover {
+      background: #edf2f7;
+      color: #1a202c;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+      display: block;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .form-textarea {
+      resize: vertical;
+      min-height: 100px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    .empty-state-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    .empty-state-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 0.5rem;
+    }
+
+    .empty-state-text {
+      color: #718096;
+      margin-bottom: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔌 Gestión de APIs Dinámicas</h1>
+      <p>Administra las integraciones con APIs externas de tu sistema</p>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="openAddModal()">
+        ➕ Agregar Nueva API
+      </button>
+      <button class="btn btn-secondary" onclick="refreshAPIs()">
+        🔄 Actualizar
+      </button>
+    </div>
+
+    <div id="apiGrid" class="api-grid">
+      <!-- Las tarjetas de API se generarán dinámicamente aquí -->
+    </div>
+
+    <div id="emptyState" class="empty-state" style="display: none;">
+      <div class="empty-state-icon">📭</div>
+      <h2 class="empty-state-title">No hay APIs registradas</h2>
+      <p class="empty-state-text">Comienza agregando tu primera integración de API</p>
+      <button class="btn btn-primary" onclick="openAddModal()">
+        ➕ Agregar Primera API
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal para agregar/editar API -->
+  <div id="apiModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">Agregar Nueva API</h2>
+        <button class="btn-close" onclick="closeModal()">×</button>
+      </div>
+
+      <form id="apiForm" onsubmit="saveAPI(event)">
+        <div class="form-group">
+          <label class="form-label">ID de la API *</label>
+          <input type="text" class="form-input" id="apiId" required 
+                 placeholder="ej: crm-api">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nombre *</label>
+          <input type="text" class="form-input" id="apiName" required 
+                 placeholder="ej: CRM API">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">URL Base *</label>
+          <input type="url" class="form-input" id="apiBaseUrl" required 
+                 placeholder="https://api.example.com">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Descripción</label>
+          <textarea class="form-textarea" id="apiDescription" 
+                    placeholder="Descripción de la API..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tipo de Autenticación *</label>
+          <select class="form-select" id="authType" required onchange="updateAuthFields()">
+            <option value="none">Sin autenticación</option>
+            <option value="bearer">Bearer Token</option>
+            <option value="api_key">API Key</option>
+            <option value="basic">Basic Auth</option>
+          </select>
+        </div>
+
+        <div id="authFields"></div>
+
+        <div class="form-group">
+          <label class="form-label">Endpoints (JSON) *</label>
+          <textarea class="form-textarea" id="apiEndpoints" required 
+                    placeholder='[{"name": "getUsers", "path": "/users", "method": "GET"}]'></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tags (separados por coma)</label>
+          <input type="text" class="form-input" id="apiTags" 
+                 placeholder="crm, sales, customers">
+        </div>
+
+        <div class="api-actions">
+          <button type="button" class="btn btn-secondary btn-small" onclick="closeModal()">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primary btn-small">
+            💾 Guardar API
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Simulación de datos (en producción vendría del backend)
+    let apis = [];
+
+    function loadAPIs() {
+      // TODO: Cargar desde el backend
+      // fetch('/api/admin/dynamic-apis')
+      //   .then(res => res.json())
+      //   .then(data => { apis = data; renderAPIs(); });
+      
+      // Datos de ejemplo
+      apis = [
+        {
+          id: 'crm-api',
+          name: 'CRM API',
+          baseUrl: 'https://api.crm.example.com',
+          description: 'API de gestión de clientes',
+          auth: { type: 'bearer' },
+          endpoints: [
+            { name: 'getCustomers', path: '/customers', method: 'GET' },
+            { name: 'createCustomer', path: '/customers', method: 'POST' },
+          ],
+          enabled: true,
+          tags: ['crm', 'sales'],
+        },
+      ];
+      
+      renderAPIs();
+    }
+
+    function renderAPIs() {
+      const grid = document.getElementById('apiGrid');
+      const emptyState = document.getElementById('emptyState');
+
+      if (apis.length === 0) {
+        grid.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      grid.style.display = 'grid';
+      emptyState.style.display = 'none';
+
+      grid.innerHTML = apis.map(api => `
+        <div class="api-card ${api.enabled ? '' : 'disabled'}">
+          <div class="api-header">
+            <div>
+              <div class="api-title">${api.name}</div>
+              <div class="api-id">${api.id}</div>
+            </div>
+            <span class="api-status ${api.enabled ? 'status-enabled' : 'status-disabled'}">
+              ${api.enabled ? 'Activa' : 'Inactiva'}
+            </span>
+          </div>
+
+          ${api.description ? `<p class="api-description">${api.description}</p>` : ''}
+
+          <div class="api-meta">
+            <div class="meta-item">
+              <span>🔐</span>
+              <span>${api.auth.type}</span>
+            </div>
+            <div class="meta-item">
+              <span>📡</span>
+              <span>${api.endpoints.length} endpoints</span>
+            </div>
+          </div>
+
+          ${api.tags && api.tags.length > 0 ? `
+            <div class="api-tags">
+              ${api.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+            </div>
+          ` : ''}
+
+          <div class="api-endpoints">
+            <div class="endpoints-title">Endpoints:</div>
+            <div class="endpoint-list">
+              ${api.endpoints.slice(0, 3).map(ep => `
+                <div class="endpoint-item">
+                  <span class="method-badge method-${ep.method.toLowerCase()}">${ep.method}</span>
+                  <span>${ep.path}</span>
+                </div>
+              `).join('')}
+              ${api.endpoints.length > 3 ? `<div class="endpoint-item">... y ${api.endpoints.length - 3} más</div>` : ''}
+            </div>
+          </div>
+
+          <div class="api-actions">
+            <button class="btn btn-secondary btn-small" onclick="toggleAPI('${api.id}')">
+              ${api.enabled ? '⏸️ Desactivar' : '▶️ Activar'}
+            </button>
+            <button class="btn btn-primary btn-small" onclick="editAPI('${api.id}')">
+              ✏️ Editar
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openAddModal() {
+      document.getElementById('modalTitle').textContent = 'Agregar Nueva API';
+      document.getElementById('apiForm').reset();
+      document.getElementById('apiModal').classList.add('active');
+      updateAuthFields();
+    }
+
+    function closeModal() {
+      document.getElementById('apiModal').classList.remove('active');
+    }
+
+    function updateAuthFields() {
+      const authType = document.getElementById('authType').value;
+      const authFields = document.getElementById('authFields');
+
+      let html = '';
+      if (authType === 'bearer') {
+        html = `
+          <div class="form-group">
+            <label class="form-label">Bearer Token *</label>
+            <input type="text" class="form-input" id="bearerToken" required>
+          </div>
+        `;
+      } else if (authType === 'api_key') {
+        html = `
+          <div class="form-group">
+            <label class="form-label">API Key *</label>
+            <input type="text" class="form-input" id="apiKey" required>
+          </div>
+        `;
+      } else if (authType === 'basic') {
+        html = `
+          <div class="form-group">
+            <label class="form-label">Usuario *</label>
+            <input type="text" class="form-input" id="username" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña *</label>
+            <input type="password" class="form-input" id="password" required>
+          </div>
+        `;
+      }
+
+      authFields.innerHTML = html;
+    }
+
+    function saveAPI(event) {
+      event.preventDefault();
+      
+      // TODO: Enviar al backend
+      // const apiData = { ... };
+      // fetch('/api/admin/dynamic-apis', { method: 'POST', body: JSON.stringify(apiData) })
+      
+      alert('API guardada (funcionalidad de backend pendiente)');
+      closeModal();
+    }
+
+    function toggleAPI(apiId) {
+      // TODO: Actualizar en backend
+      alert(`Toggle API: ${apiId}`);
+    }
+
+    function editAPI(apiId) {
+      // TODO: Cargar datos y abrir modal
+      alert(`Edit API: ${apiId}`);
+    }
+
+    function refreshAPIs() {
+      loadAPIs();
+    }
+
+    // Cargar al inicio
+    loadAPIs();
+  </script>
+</body>
+</html>

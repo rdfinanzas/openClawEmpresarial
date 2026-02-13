@@ -1,0 +1,82 @@
+{
+  "_comentario": "Configuración de PRUEBA para OpenClaw Empresarial con API Mock",
+  
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "trustedProxies": ["127.0.0.1"]
+  },
+
+  "superadmin": {
+    "enabled": true,
+    "telegramUserId": 123456789,
+    "panel": {
+      "enabled": true,
+      "sessionTimeoutMinutes": 60
+    },
+    "credentials": {
+      "username": "admin",
+      "passwordHash": "$2b$10$YourHashedPasswordHere"
+    },
+    "rootAuth": {
+      "enabled": true,
+      "criticalOperations": ["file_delete", "config_write"],
+      "requestExpiryMinutes": 10
+    }
+  },
+
+  "channels": {
+    "telegram": {
+      "enabled": false,
+      "_nota": "Pon tu token real aquí cuando lo tengas",
+      "botToken": "TOKEN_AQUI",
+      "accounts": {
+        "admin": {
+          "default": true,
+          "enabled": true,
+          "dmPolicy": "allowlist",
+          "allowFrom": [123456789]
+        }
+      }
+    },
+    "whatsapp": {
+      "enabled": false,
+      "_nota": "Habilitar cuando conectes WhatsApp",
+      "dmPolicy": "open"
+    }
+  },
+
+  "agents": {
+    "default": {
+      "model": "anthropic:claude-3-5-sonnet",
+      "systemPrompt": "Eres el asistente virtual del ALMACÉN DON JOSÉ. Tu trabajo es ayudar a los clientes con: 1) Consultar si tenemos productos en stock, 2) Dar precios, 3) Mostrar el catálogo de productos, 4) Crear pedidos para delivery, 5) Consultar estado de pedidos existentes. NO puedes responder preguntas que no sean sobre nuestros productos y servicios. Si te preguntan sobre el clima, noticias, o temas generales, responde amablemente: 'Lo siento, solo puedo ayudarte con consultas sobre nuestros productos y pedidos. ¿En qué producto estás interesado?'"
+    }
+  },
+
+  "enterprise": {
+    "apiBaseUrl": "http://localhost:9999",
+    "apis": {
+      "check_stock": {
+        "endpoint": "http://localhost:9999/v1/stock",
+        "method": "GET"
+      },
+      "get_price": {
+        "endpoint": "http://localhost:9999/v1/prices", 
+        "method": "GET"
+      },
+      "view_catalog": {
+        "endpoint": "http://localhost:9999/v1/products",
+        "method": "GET"
+      },
+      "create_order": {
+        "endpoint": "http://localhost:9999/v1/orders",
+        "method": "POST"
+      },
+      "check_order_status": {
+        "endpoint": "http://localhost:9999/v1/orders/status",
+        "method": "GET"
+      }
+    }
+  }
+}

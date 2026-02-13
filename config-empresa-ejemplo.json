@@ -1,0 +1,71 @@
+{
+  "_comentario": "Configuración de OpenClaw para ATENCIÓN AL CLIENTE EMPRESARIAL",
+  "_descripcion": "Los clientes por WhatsApp solo pueden consultar stock, precios y hacer pedidos. NUNCA buscan en la web.",
+  
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback"
+  },
+
+  "superadmin": {
+    "enabled": true,
+    "telegramUserId": 123456789,
+    "panel": {
+      "enabled": true,
+      "sessionTimeoutMinutes": 60
+    },
+    "credentials": {
+      "username": "admin",
+      "passwordHash": "$2b$10$..."
+    }
+  },
+
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "TOKEN_SUPERADMIN",
+      "accounts": {
+        "admin": {
+          "default": true,
+          "enabled": true,
+          "dmPolicy": "allowlist",
+          "allowFrom": [123456789]
+        }
+      }
+    },
+    "whatsapp": {
+      "enabled": true,
+      "dmPolicy": "open",
+      "allowFrom": ["*"]
+    }
+  },
+
+  "agents": {
+    "default": {
+      "model": "anthropic:claude-3-5-sonnet",
+      "systemPrompt": "Eres el asistente virtual de ALMACEN DON JOSE. Solo puedes ayudar con: consultar stock de productos, precios, crear pedidos, y ver estado de pedidos. NO puedes buscar información en internet. NO respondas preguntas generales como clima, hora, o temas no relacionados con la tienda. Si te preguntan algo fuera de estos temas, di amablemente: 'Lo siento, solo puedo ayudarte con consultas sobre nuestros productos y pedidos.'"
+    }
+  },
+
+  "enterprise": {
+    "apis": {
+      "check_stock": {
+        "endpoint": "https://api.almacendonjose.com/v1/stock",
+        "auth": "bearer_token"
+      },
+      "get_price": {
+        "endpoint": "https://api.almacendonjose.com/v1/prices",
+        "auth": "bearer_token"
+      },
+      "create_order": {
+        "endpoint": "https://api.almacendonjose.com/v1/orders",
+        "auth": "bearer_token"
+      },
+      "check_order_status": {
+        "endpoint": "https://api.almacendonjose.com/v1/orders/status",
+        "auth": "bearer_token"
+      }
+    }
+  }
+}

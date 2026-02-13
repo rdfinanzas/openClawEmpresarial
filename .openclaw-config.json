@@ -1,0 +1,23 @@
+{
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "superadmin": {
+      "enabled": true,
+      "telegramUserId": 123456789
+    }
+  },
+  "superadmin": {
+    "enabled": true,
+    "telegramUserId": 123456789,
+    "panel": {
+      "enabled": true,
+      "sessionTimeoutMinutes": 60
+    },
+    "credentials": {
+      "username": "admin",
+      "passwordHash": "$2b$10$YourHashedPasswordHere"
+    }
+  }
+}
