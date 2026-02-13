@@ -129,11 +129,44 @@ async function setupAuthAndModel(
     ],
   });
 
-  // Aquí iría la lógica de autenticación específica por proveedor
-  // Por simplicidad, usamos el flujo existente
+  // Pedir API Key según el proveedor seleccionado
+  let apiKey = "";
+  
+  const providerLabels: Record<string, string> = {
+    anthropic: "Anthropic",
+    openai: "OpenAI",
+    moonshot: "Moonshot AI (Kimi)",
+    zai: "Z.AI (GLM)",
+    deepseek: "DeepSeek",
+    qwen: "Qwen (Alibaba)",
+    minimax: "MiniMax",
+    together: "Together AI",
+    openrouter: "OpenRouter",
+    google: "Google (Gemini)",
+    custom: "Custom Provider",
+  };
+
+  await prompter.note(
+    [
+      `AUTENTICACIÓN PARA ${providerLabels[provider]?.toUpperCase() || provider}`,
+      "",
+      `Necesitas una API Key de ${providerLabels[provider] || provider}.`,
+      "",
+      "¿Dónde obtenerla?",
+      getProviderHelp(provider),
+    ].join("\n"),
+    "API Key"
+  );
+
+  apiKey = await prompter.text({
+    message: `Ingresa tu API Key de ${providerLabels[provider] || provider}`,
+    placeholder: getApiKeyPlaceholder(provider),
+    validate: (val) => val.trim().length < 10 ? "API Key muy corta" : undefined,
+  });
+
+  // Configurar modelo y credenciales
   let nextConfig = config;
   
-  // Configurar modelo por defecto según proveedor
   const modelMap: Record<string, string> = {
     anthropic: "anthropic/claude-opus-4-6",
     openai: "openai/gpt-4o",
@@ -148,17 +181,69 @@ async function setupAuthAndModel(
     custom: "custom/default",
   };
 
+  const envVarMap: Record<string, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    openai: "OPENAI_API_KEY",
+    moonshot: "MOONSHOT_API_KEY",
+    zai: "ZAI_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+    qwen: "QWEN_API_KEY",
+    minimax: "MINIMAX_API_KEY",
+    together: "TOGETHER_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+    google: "GOOGLE_API_KEY",
+    custom: "CUSTOM_API_KEY",
+  };
+
+  // Guardar API key en config
   nextConfig = {
     ...nextConfig,
     agent: {
       ...nextConfig.agent,
       model: modelMap[provider] || modelMap.anthropic,
     },
+    models: {
+      ...nextConfig.models,
+      [provider]: {
+        apiKey: apiKey.trim(),
+      },
+    },
   };
 
-  await warnIfModelConfigLooksOff(nextConfig, prompter);
+  await prompter.note(
+    [`✅ API Key de ${providerLabels[provider]} configurada.`].join("\n"),
+    "Éxito"
+  );
 
   return nextConfig;
+
+  // Funciones auxiliares
+  function getProviderHelp(provider: string): string {
+    const help: Record<string, string> = {
+      anthropic: "1. Ve a https://console.anthropic.com\n2. Crea una cuenta o inicia sesión\n3. Ve a Settings → API Keys\n4. Genera una nueva API Key",
+      openai: "1. Ve a https://platform.openai.com\n2. Crea una cuenta o inicia sesión\n3. Ve a API Keys\n4. Crea una nueva API Key",
+      moonshot: "1. Ve a https://platform.moonshot.cn\n2. Regístrate con email chino o internacional\n3. Ve a API Keys\n4. Genera una nueva key",
+      zai: "1. Ve a https://www.z.ai\n2. Regístrate\n3. Ve a API section\n4. Obtén tu API Key",
+      deepseek: "1. Ve a https://platform.deepseek.com\n2. Crea una cuenta\n3. Ve a API Keys\n4. Genera una nueva API Key",
+      qwen: "1. Ve a https://dashscope.aliyun.com\n2. Regístrate con cuenta Alibaba\n3. Crea una API Key en el dashboard",
+      minimax: "1. Ve a https://www.minimaxi.com\n2. Regístrate\n3. Solicita acceso a API\n4. Obtén tu API Key",
+      together: "1. Ve a https://api.together.xyz\n2. Crea una cuenta\n3. Ve a API Keys\n4. Copia tu key",
+      openrouter: "1. Ve a https://openrouter.ai\n2. Crea una cuenta\n3. Ve a Keys\n4. Genera una nueva key",
+      google: "1. Ve a https://ai.google.dev\n2. Inicia sesión con Google\n3. Ve a API Keys\n4. Crea una nueva key",
+      custom: "Consulta la documentación de tu proveedor personalizado.",
+    };
+    return help[provider] || "Consulta la documentación del proveedor.";
+  }
+
+  function getApiKeyPlaceholder(provider: string): string {
+    const placeholders: Record<string, string> = {
+      anthropic: "sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      openai: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      deepseek: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      moonshot: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    };
+    return placeholders[provider] || "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+  }
 }
 
 // ============================================================
