@@ -73,50 +73,65 @@ Conecta OpenClaw con tus sistemas existentes:
 
 ## 🚀 Inicio Rápido
 
-### Requisitos
+Hay **dos formas** de usar OpenClaw Empresarial:
+
+### Opción 1: Instalar desde npm (Recomendada - Más fácil)
+
+Esta opción instala OpenClaw ya compilado, listo para usar:
+
+```bash
+# 1. Instalar OpenClaw globalmente (ya incluye todo compilado)
+npm install -g openclaw@latest
+
+# 2. Ejecutar el asistente de configuración
+openclaw onboard --install-daemon
+
+# 3. Iniciar el gateway
+openclaw gateway --port 18789
+```
+
+> ℹ️ **Nota**: Esta opción instala el paquete oficial desde npm. Si quieres usar esta versión empresarial modificada, necesitas la Opción 2.
+
+---
+
+### Opción 2: Desarrollo desde el código fuente (Este Repositorio)
+
+Usa esta opción si quieres modificar el código o usar las funcionalidades empresariales personalizadas:
+
+#### Requisitos
 
 - **Node.js**: 22+ 
-- **pnpm**: Instalado globalmente (`npm install -g pnpm`)
 - **Sistema operativo**: Windows 10/11, macOS, Linux
 - **RAM**: 4GB mínimo recomendado
 - **Puerto**: 18789 disponible
 
-> ⚠️ **Nota**: Este proyecto usa `pnpm` para gestionar dependencias y compilar TypeScript. Asegúrate de tenerlo instalado.
-
-### Instalación
-
-#### Opción A: Usando el Script de Inicio (Windows - Recomendado)
+#### Instalación Rápida (Windows)
 
 ```powershell
 # 1. Clonar el repositorio
 git clone https://github.com/rdfinanzas/openClawEmpresarial.git
 cd openClawEmpresarial
 
-# 2. Ejecutar el script de inicio (instala todo automáticamente)
+# 2. Ejecutar el script de inicio (maneja todo automáticamente)
 .\start-system.ps1
 
 # O con parámetros específicos
 .\start-system.ps1 -DevMode -Port 8080
 ```
 
-#### Opción B: Instalación Manual con pnpm
+#### Instalación Manual
 
 ```bash
 # 1. Clonar el repositorio
 git clone https://github.com/rdfinanzas/openClawEmpresarial.git
 cd openClawEmpresarial
 
-# 2. Instalar pnpm (si no lo tienes)
-npm install -g pnpm
+# 2. Instalar dependencias (npm o pnpm)
+npm install
+# o: pnpm install
 
-# 3. Instalar dependencias
-pnpm install
-
-# 4. Compilar el proyecto
-pnpm build
-
-# 5. Iniciar
-pnpm start
+# 3. Iniciar (compila automáticamente si es necesario)
+npm run start:npm
 ```
 
 ### Configuración Inicial
@@ -166,27 +181,16 @@ O crea manualmente `config.json`:
 }
 ```
 
-### Iniciar el Sistema
-
-#### Opción A: Solo con npm (Sin pnpm)
+### Iniciar el Sistema (desde código fuente)
 
 ```bash
-# Usar el script alternativo que usa npx
+# Opción A: npm puro (sin necesidad de pnpm)
 npm run start:npm
 
-# O el alias
-npm run dev:npm
-```
-
-#### Opción B: Con pnpm (Recomendado si lo tienes)
-
-```bash
+# Opción B: Con pnpm (si lo tienes instalado)
 pnpm start
-```
 
-#### Opción C: Script de Windows
-
-```powershell
+# Opción C: Script de Windows
 .\start-system.ps1
 ```
 
