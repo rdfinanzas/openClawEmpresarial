@@ -134,8 +134,14 @@ const AUTH_CHOICE_GROUP_DEFS: {
   {
     value: "together",
     label: "Together AI",
-    hint: "API key",
+    hint: "API key - Llama, DeepSeek, Qwen, and more",
     choices: ["together-api-key"],
+  },
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    hint: "Chinese model specialized in code and math",
+    choices: ["deepseek-api-key"],
   },
   {
     value: "venice",
@@ -213,6 +219,11 @@ export function buildAuthChoiceOptions(params: {
     value: "together-api-key",
     label: "Together AI API key",
     hint: "Access to Llama, DeepSeek, Qwen, and more open models",
+  });
+  options.push({
+    value: "deepseek-api-key",
+    label: "DeepSeek API key",
+    hint: "Chinese model specialized in code and math reasoning",
   });
   options.push({
     value: "github-copilot",
