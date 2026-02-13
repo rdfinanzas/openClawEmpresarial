@@ -1,16 +1,43 @@
 # 🦞 OpenClaw Empresarial
 
 <p align="center">
-  <strong>Asistente de IA Multi-Canal para Negocios</strong>
+  <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/openclaw-logo-text.png" alt="OpenClaw Empresarial" width="400">
+</p>
+
+<p align="center">
+  <strong>🤖 Asistente de IA Multi-Canal para Negocios</strong><br>
+  <em>Automatización inteligente con control total de tus datos</em>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="Licencia MIT"></a>
+  <a href="#"><img src="https://img.shields.io/badge/versión-empresarial-ff6b6b?style=for-the-badge" alt="Versión Empresarial"></a>
 </p>
 
-**OpenClaw Empresarial** es una adaptación empresarial de OpenClaw que proporciona un asistente de IA personal ejecutable en tus propios servidores. Diseñado específicamente para negocios que necesitan automatizar comunicaciones con clientes mientras mantienen control total sobre sus datos y conversaciones.
+---
 
-> 🎯 **Diferencia clave**: Sistema de **doble personalidad** que separa interacciones públicas (ventas) de privadas (administración), con controles de seguridad empresarial robustos.
+> 🏆 **Versión mejorada por**: @rdfinanzas (Hector)  
+> 📅 **Última actualización**: Febrero 2026  
+> 🔄 **Basado en**: OpenClaw original + Mejoras empresariales
+
+---
+
+## 🎯 ¿Qué es OpenClaw Empresarial?
+
+**OpenClaw Empresarial** es una **versión mejorada** de OpenClaw diseñada específicamente para **negocios y empresas** que necesitan:
+
+- ✅ **Múltiples cuentas de WhatsApp** (ventas, soporte, compras, VIP)
+- ✅ **Sistema de doble personalidad** (ventas público + admin privado)
+- ✅ **Wizard unificado** en español (un solo comando configura todo)
+- ✅ **Soporte para LLMs chinos** (Kimi, GLM, DeepSeek, Qwen)
+- ✅ **Integración simplificada** de APIs empresariales
+- ✅ **Panel de administración web** para gestión centralizada
+
+> 🎭 **Diferencia clave**: El sistema automáticamente escala conversaciones de ventas a admin cuando detecta consultas complejas o intentos de manipulación.
+
+---
+
+## 🚀 Inicio Rápido (Un solo comando)
 
 ---
 
@@ -401,7 +428,57 @@ MIT License - ver [LICENSE](LICENSE) para detalles.
 
 ---
 
+---
+
+## 🏆 Créditos y Mejoras
+
+### Versión Original
+- **OpenClaw**: https://github.com/openclaw/openclaw
+- **Autor**: Peter Steinberger y comunidad
+- **Licencia**: MIT
+
+### Mejoras de Esta Versión Empresarial
+
+Esta versión fue **mejorada y adaptada** por **@rdfinanzas (Hector)** con las siguientes características:
+
+#### ✨ Nuevas Características
+| Feature | Descripción |
+|---------|-------------|
+| 🎯 **Wizard Unificado** | Un solo comando (`openclaw onboard`) configura todo: modelo LLM, Telegram, WhatsApp multi-cuenta y personalidades empresariales |
+| 🇨🇳 **LLMs Chinos** | Soporte nativo para Kimi, GLM, DeepSeek, Qwen, MiniMax |
+| 📱 **WhatsApp Multi-Cuenta** | Configura ventas, soporte, compras y VIP desde el wizard |
+| 🤖 **Telegram Admin** | Canal de administración obligatorio con acceso total |
+| 🎭 **Doble Personalidad** | Ventas (restringido) + Admin (completo) con escalada automática |
+| 📚 **Documentación en Español** | Toda la documentación adaptada al español |
+| 🎨 **UI Mejorada** | Interfaz de wizard con títulos grandes y flujo guiado |
+
+#### 🔧 Cambios Técnicos
+- Integración automática de onboard + enterprise
+- Sistema de checkboxes para selección de expertise
+- Generación dinámica de QR según cantidad de cuentas
+- Mejoras en seguridad y detección de pre-requisitos
+
+#### 📁 Archivos Creados/Modificados
+```
+src/wizard/onboarding-unified.ts          (NUEVO - Wizard completo)
+src/commands/auth-choice-options.ts       (MOD - DeepSeek agregado)
+src/wizard/onboarding-enterprise.ts       (MOD - Simplificado)
+WIZARD_UNIFICADO.md                       (NUEVO - Documentación)
+WIZARD_COMPLETO.md                        (NUEVO - Especificación)
+```
+
+---
+
+## 🙏 Agradecimientos
+
+- A la comunidad de **OpenClaw** por el excelente proyecto base
+- A **Peter Steinberger** por crear OpenClaw
+- A todos los contribuidores del proyecto original
+
+---
+
 <p align="center">
   <strong>🦞 OpenClaw Empresarial</strong><br>
-  Automatización inteligente para tu negocio
+  <em>Automatización inteligente para tu negocio</em><br>
+  <small>Mejorado por @rdfinanzas (Hector) | Febrero 2026</small>
 </p>
