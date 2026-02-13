@@ -168,14 +168,25 @@ O crea manualmente `config.json`:
 
 ### Iniciar el Sistema
 
+#### Opción A: Solo con npm (Sin pnpm)
+
 ```bash
-# Usando pnpm (recomendado)
+# Usar el script alternativo que usa npx
+npm run start:npm
+
+# O el alias
+npm run dev:npm
+```
+
+#### Opción B: Con pnpm (Recomendado si lo tienes)
+
+```bash
 pnpm start
+```
 
-# O usando npm (requiere pnpm instalado para compilar)
-npm start
+#### Opción C: Script de Windows
 
-# En Windows con el script
+```powershell
 .\start-system.ps1
 ```
 
