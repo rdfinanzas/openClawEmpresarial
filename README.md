@@ -76,41 +76,59 @@ Conecta OpenClaw con tus sistemas existentes:
 ### Requisitos
 
 - **Node.js**: 22+ 
+- **pnpm**: Instalado globalmente (`npm install -g pnpm`)
 - **Sistema operativo**: Windows 10/11, macOS, Linux
 - **RAM**: 4GB mínimo recomendado
 - **Puerto**: 18789 disponible
 
+> ⚠️ **Nota**: Este proyecto usa `pnpm` para gestionar dependencias y compilar TypeScript. Asegúrate de tenerlo instalado.
+
 ### Instalación
 
-```bash
+#### Opción A: Usando el Script de Inicio (Windows - Recomendado)
+
+```powershell
 # 1. Clonar el repositorio
 git clone https://github.com/rdfinanzas/openClawEmpresarial.git
 cd openClawEmpresarial
 
-# 2. Instalar dependencias
-npm install
-# o: pnpm install
-
-# 3. Configurar el sistema empresarial
-npm run enterprise:setup
-# o ejecuta directamente: node scripts/run-node.mjs enterprise setup
-```
-
-### Configuración Inicial
-
-#### Opción A: Usando el Wizard (Recomendado)
-
-```powershell
-# Windows
+# 2. Ejecutar el script de inicio (instala todo automáticamente)
 .\start-system.ps1
 
 # O con parámetros específicos
 .\start-system.ps1 -DevMode -Port 8080
 ```
 
-#### Opción B: Configuración Manual
+#### Opción B: Instalación Manual con pnpm
 
-Crea `config.json` en la raíz del proyecto:
+```bash
+# 1. Clonar el repositorio
+git clone https://github.com/rdfinanzas/openClawEmpresarial.git
+cd openClawEmpresarial
+
+# 2. Instalar pnpm (si no lo tienes)
+npm install -g pnpm
+
+# 3. Instalar dependencias
+pnpm install
+
+# 4. Compilar el proyecto
+pnpm build
+
+# 5. Iniciar
+pnpm start
+```
+
+### Configuración Inicial
+
+La primera vez que ejecutes el sistema, se creará un archivo `config.json` básico. Para configuración empresarial completa:
+
+```bash
+# Configurar modo empresarial
+node scripts/run-node.mjs enterprise setup
+```
+
+O crea manualmente `config.json`:
 
 ```json
 {
@@ -151,13 +169,13 @@ Crea `config.json` en la raíz del proyecto:
 ### Iniciar el Sistema
 
 ```bash
-# Modo desarrollo
-npm run dev
+# Usando pnpm (recomendado)
+pnpm start
 
-# Modo producción
+# O usando npm (requiere pnpm instalado para compilar)
 npm start
 
-# O usando el script de Windows
+# En Windows con el script
 .\start-system.ps1
 ```
 
