@@ -72,14 +72,13 @@ function buildSalesSystemPrompt(
     const apisList = Object.entries(apis)
       .map(([id, api]) => `- ${id}: ${api.description || api.endpoint} (${api.method})`)
       .join('\n');
-    apisSection = `
-APIS DISPONIBLES PARA CONSULTAR/UTILIZAR:
-${apisList}
+    apisSection = `APIS DISPONIBLES PARA CONSULTAR/UTILIZAR:
+            ${apisList}
 
-PARA USAR UNA API:
-Indica claramente qué API necesitas usar y con qué parámetros.
-Ejemplo: "Voy a consultar usando la API 'stock' con el parámetro producto=fideos"
-`;
+            PARA USAR UNA API:
+            Indica claramente qué API necesitas usar y con qué parámetros.
+            Ejemplo: "Voy a consultar usando la API 'stock' con el parámetro producto=fideos"
+            `;
   }
 
   return `╔══════════════════════════════════════════════════════════════╗
@@ -505,12 +504,12 @@ export async function runEnterpriseWizard(
 
   let salesExpertise = defaultExpertise;
   if (customizeExpertise) {
-    const expertiseText = await prompter.text({
-      message: "Ingresa las áreas de expertise (una por línea)",
-      placeholder: defaultExpertise.join('\n'),
-      initialValue: defaultExpertise.join('\n'),
+    const selectedExpertise = await prompter.multiselect<string>({
+      message: "Selecciona las áreas de expertise (espacio para marcar, enter para confirmar)",
+      options: defaultExpertise.map(e => ({ value: e, label: e })),
+      initialValues: defaultExpertise,
     });
-    salesExpertise = expertiseText.split('\n').filter(e => e.trim());
+    salesExpertise = selectedExpertise;
   }
 
   // ===== PASO 3: PERSONALIDAD ADMIN =====
@@ -701,6 +700,9 @@ export async function runEnterpriseWizard(
     "Resumen WhatsApp"
   );
 
+  // Inicializar APIs (se configuran después)
+  const apis: Record<string, { endpoint: string; method: string; auth: string; description?: string; headers?: Record<string, string> }> = {};
+
   // Construir personalidad completa
   const personality: EnterprisePersonality = {
     businessName: businessName.trim(),
@@ -754,8 +756,6 @@ export async function runEnterpriseWizard(
     "APIs Empresariales (Cualquier Tipo)"
   );
 
-  const apis: Record<string, { endpoint: string; method: string; auth: string; description?: string; headers?: Record<string, string> }> = {};
-  
   const apiBaseUrl = await prompter.text({
     message: "URL base de tus APIs (opcional)",
     placeholder: "https://api.tunegocio.com",
@@ -900,7 +900,7 @@ export async function runEnterpriseWizard(
         { value: 'clientes', label: 'Gestión Clientes', hint: 'GET/POST /customers' },
       { value: 'delivery', label: 'Estado Delivery', hint: 'GET /delivery' },
       ];
-
+      
       for (const apiType of apiTypes) {
         const addApi = await prompter.confirm({
           message: `¿Configurar API de ${apiType.label}?`,
@@ -944,6 +944,7 @@ export async function runEnterpriseWizard(
           };
         }
       }
+    }
   }
 
   // ===== PASO 6: CONFIGURACIÓN FINAL =====
@@ -1058,10 +1059,21 @@ export async function runEnterpriseWizard(
     [
       "✅ Configuración empresarial completada",
       "",
-      "Próximos pasos:",
-      "1. Configura tu bot de Telegram (canal admin)",
-      "2. Configura tu cuenta de WhatsApp Business",
-      "3. Prueba la comunicación entre personalidades",
+      "📝 PRÓXIMOS PASOS IMPORTANTES:",
+      "",
+      "1. ESCANEAR QR DE WHATSAPP:",
+      `   Ejecuta: openclaw channels login whatsapp`,
+      "   Se mostrará un código QR para escanear con tu teléfono",
+      "",
+      "2. CONFIGURAR BOT DE TELEGRAM (Admin):",
+      "   - Crea un bot con @BotFather",
+      "   - Obtén el token y agrégalo a la configuración",
+      "",
+      "3. INICIAR EL GATEWAY:",
+      "   Ejecuta: openclaw gateway --port 18789",
+      "",
+      "4. PANEL DE ADMINISTRACIÓN:",
+      "   Abre: http://localhost:18789/admin",
       "",
       "El agente de ventas está listo para atender clientes",
       "y escalará automáticamente cuando sea necesario.",
@@ -1071,10 +1083,7 @@ export async function runEnterpriseWizard(
   return newConfig;
 }
 
-/**
- * Alias para compatibilidad con onboarding.ts
- * @deprecated Use runEnterpriseWizard instead
- */
+// Alias para compatibilidad con onboarding.ts
 export const setupEnterpriseApis = runEnterpriseWizard;
 
 /**
@@ -1221,6 +1230,4 @@ export async function removeEnterpriseApi(
       apis: remainingApis,
     },
   };
-}
-
 }
