@@ -112,12 +112,6 @@ async function setupAuthAndModel(
     "Paso 2 de 7"
   );
 
-  const { groups, skipOption } = promptAuthChoiceGrouped({
-    store: { profiles: [] },
-    includeSkip: false,
-  });
-
-  // Mostrar opciones agrupadas
   const provider = await prompter.select({
     message: "Proveedor de IA",
     options: [
