@@ -76,7 +76,7 @@ export type GatewayControlUiConfig = {
   dangerouslyDisableDeviceAuth?: boolean;
 };
 
-export type GatewayAuthMode = "token" | "password";
+export type GatewayAuthMode = "token" | "password" | "none";
 
 export type GatewayAuthConfig = {
   /** Authentication mode for Gateway connections. Defaults to token when set. */
@@ -87,6 +87,13 @@ export type GatewayAuthConfig = {
   password?: string;
   /** Allow Tailscale identity headers when serve mode is enabled. */
   allowTailscale?: boolean;
+  /**
+   * Require authentication even for localhost/loopback connections.
+   * By default, localhost connections bypass authentication for developer convenience.
+   * Set to true for production deployments to enforce authentication everywhere.
+   * Default: false
+   */
+  requireLocalAuth?: boolean;
 };
 
 export type GatewayTailscaleMode = "off" | "serve" | "funnel";

@@ -15,6 +15,8 @@ export type WhatsAppActionConfig = {
 };
 
 export type WhatsAppConfig = {
+  /** If false, do not start the WhatsApp channel provider. Default: true. */
+  enabled?: boolean;
   /** Optional per-account WhatsApp configuration (multi-account). */
   accounts?: Record<string, WhatsAppAccountConfig>;
   /** Optional provider capability tags used for agent/runtime guidance. */
@@ -129,6 +131,18 @@ export type WhatsAppAccountConfig = {
   enabled?: boolean;
   /** Send read receipts for incoming messages (default true). */
   sendReadReceipts?: boolean;
+  /** Phone number for this account (enterprise feature). */
+  phoneNumber?: string;
+  /** Purpose/description of this account (enterprise feature). */
+  purpose?: string;
+  /**
+   * Role of this account for enterprise mode (enterprise feature).
+   * - 'public': Customer-facing, limited access (ventas, soporte)
+   * - 'support': Technical support
+   * - 'purchasing': Supplier management
+   * - 'private': Internal/VIP communications
+   */
+  role?: 'public' | 'support' | 'purchasing' | 'private';
   /** Inbound message prefix override for this account (WhatsApp only). */
   messagePrefix?: string;
   /** Per-account outbound response prefix override (takes precedence over channel and global). */
@@ -184,13 +198,4 @@ export type WhatsAppAccountConfig = {
   debounceMs?: number;
   /** Heartbeat visibility settings for this account. */
   heartbeat?: ChannelHeartbeatVisibilityConfig;
-  /** 
-   * Optional system prompt for this WhatsApp account.
-   * Injected into every conversation to define agent personality.
-   */
-  systemPrompt?: string;
-  /** 
-   * Role of this account for enterprise mode.
-   */
-  role?: 'superadmin' | 'public';
 };

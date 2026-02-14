@@ -1,46 +1,100 @@
+# Agento Docker Compose
+# =====================
+#
+# Usage:
+#   Development:
+#     AGENTO_CONFIG_DIR=~/.agento AGENTO_WORKSPACE_DIR=~/.agento/workspace docker-compose up agento-gateway
+#
+#   Production:
+#     cp .env.example .env
+#     # Edit .env with your values
+#     docker-compose up -d agento-gateway
+#
+# Environment variables (can be set in .env file):
+#   AGENTO_IMAGE          - Docker image to use (default: agento:local)
+#   AGENTO_GATEWAY_TOKEN  - Authentication token for the gateway
+#   AGENTO_GATEWAY_PORT   - Host port for gateway (default: 18789)
+#   AGENTO_GATEWAY_BIND   - Gateway bind mode: loopback, lan, tailscale (default: lan)
+#   AGENTO_CONFIG_DIR     - Host directory for config files
+#   AGENTO_WORKSPACE_DIR  - Host directory for workspace files
+
 services:
   agento-gateway:
     image: ${AGENTO_IMAGE:-agento:local}
+    container_name: agento-gateway
     environment:
       HOME: /home/node
       TERM: xterm-256color
+      NODE_ENV: production
       AGENTO_GATEWAY_TOKEN: ${AGENTO_GATEWAY_TOKEN}
-      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
-      CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
-      CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
+      AGENTO_STATE_DIR: /home/node/.openclaw
+      # LLM Provider Keys (set in .env)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      MOONSHOT_API_KEY: ${MOONSHOT_API_KEY}
+      ZAI_API_KEY: ${ZAI_API_KEY}
+      QWEN_API_KEY: ${QWEN_API_KEY}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY}
+      # Channel Tokens (set in .env)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
     volumes:
-      - ${AGENTO_CONFIG_DIR}:/home/node/.openclaw
-      - ${AGENTO_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      - ${AGENTO_CONFIG_DIR:-./data/config}:/home/node/.openclaw
+      - ${AGENTO_WORKSPACE_DIR:-./data/workspace}:/home/node/.openclaw/workspace
     ports:
       - "${AGENTO_GATEWAY_PORT:-18789}:18789"
       - "${AGENTO_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
+    # Health check for orchestration platforms
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18789/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
     command:
       [
         "node",
-        "dist/index.js",
+        "agento.mjs",
         "gateway",
         "--bind",
         "${AGENTO_GATEWAY_BIND:-lan}",
         "--port",
         "18789",
       ]
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   agento-cli:
     image: ${AGENTO_IMAGE:-agento:local}
+    container_name: agento-cli
     environment:
       HOME: /home/node
       TERM: xterm-256color
       AGENTO_GATEWAY_TOKEN: ${AGENTO_GATEWAY_TOKEN}
       BROWSER: echo
-      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
-      CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
-      CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
+      # LLM Provider Keys (set in .env)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
     volumes:
-      - ${AGENTO_CONFIG_DIR}:/home/node/.openclaw
-      - ${AGENTO_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      - ${AGENTO_CONFIG_DIR:-./data/config}:/home/node/.openclaw
+      - ${AGENTO_WORKSPACE_DIR:-./data/workspace}:/home/node/.openclaw/workspace
     stdin_open: true
     tty: true
     init: true
-    entrypoint: ["node", "dist/index.js"]
+    entrypoint: ["node", "agento.mjs"]
+    profiles:
+      - cli

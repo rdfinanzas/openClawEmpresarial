@@ -40,9 +40,14 @@ export function resolveBonjourCliPath(opts: ResolveBonjourCliPathOptions = {}): 
 
   const execPath = opts.execPath ?? process.execPath;
   const execDir = path.dirname(execPath);
-  const siblingCli = path.join(execDir, "openclaw");
-  if (isFile(siblingCli)) {
-    return siblingCli;
+  // Check for both 'agento' (current) and 'openclaw' (legacy)
+  const siblingCliAgento = path.join(execDir, "agento");
+  const siblingCliOpenclaw = path.join(execDir, "openclaw");
+  if (isFile(siblingCliAgento)) {
+    return siblingCliAgento;
+  }
+  if (isFile(siblingCliOpenclaw)) {
+    return siblingCliOpenclaw;
   }
 
   const argv = opts.argv ?? process.argv;
@@ -56,9 +61,13 @@ export function resolveBonjourCliPath(opts: ResolveBonjourCliPathOptions = {}): 
   if (isFile(distCli)) {
     return distCli;
   }
-  const binCli = path.join(cwd, "bin", "openclaw");
-  if (isFile(binCli)) {
-    return binCli;
+  const binCliAgento = path.join(cwd, "bin", "agento");
+  const binCliOpenclaw = path.join(cwd, "bin", "openclaw");
+  if (isFile(binCliAgento)) {
+    return binCliAgento;
+  }
+  if (isFile(binCliOpenclaw)) {
+    return binCliOpenclaw;
   }
 
   return undefined;

@@ -24,6 +24,7 @@ import { normalizeAccountId, DEFAULT_ACCOUNT_ID } from "../routing/session-key.j
 import { loginWeb } from "../channel-web.js";
 import { setDeepseekApiKey, setMoonshotApiKey, setZaiApiKey, setQwenApiKey, setMinimaxApiKey, setTogetherApiKey, setOpenrouterApiKey, setGeminiApiKey, setAnthropicApiKey, setOpenAIApiKey } from "../commands/onboard-auth.credentials.js";
 import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
+import { addChannelAllowFromStoreEntry } from "../pairing/pairing-store.js";
 
 const logger = (msg: string, meta?: Record<string, unknown>) => {
   const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
@@ -42,9 +43,14 @@ export interface EnterprisePersonality {
     name: string;
     tone: 'professional' | 'friendly' | 'casual' | 'luxury';
     expertise: string[];
+    restrictions: string[];
+    customInstructions?: string;
   };
   admin: {
     name: string;
+    capabilities: string[];
+    escalationTriggers: string[];
+    customInstructions?: string;
   };
 }
 
@@ -340,13 +346,13 @@ async function setupGateway(
   // Generar token si es necesario
   let token: string | undefined;
   let password: string | undefined;
-  
+
   if (authMode === "token") {
     // Generar token aleatorio seguro
-    token = "sk-" + Array.from({length: 48}, () => 
+    token = "sk-" + Array.from({length: 48}, () =>
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 62)]
     ).join("");
-    
+
     await prompter.note(
       [
         "TOKEN DE ACCESO GENERADO",
@@ -370,6 +376,27 @@ async function setupGateway(
     });
   }
 
+  // Preguntar sobre autenticación para localhost (seguridad de producción)
+  const requireLocalAuth = await prompter.confirm({
+    message: "¿Requerir autenticación incluso desde localhost? (recomendado para producción)",
+    initialValue: false,
+  });
+
+  if (requireLocalAuth) {
+    await prompter.note(
+      [
+        "🔒 MODO PRODUCCIÓN ACTIVADO",
+        "",
+        "La autenticación será requerida para TODAS las conexiones,",
+        "incluyendo las desde localhost.",
+        "",
+        "Esto es más seguro pero requiere que uses el token/contraseña",
+        "incluso cuando accedas desde la misma computadora.",
+      ].join("\n"),
+      "Seguridad"
+    );
+  }
+
   return {
     ...config,
     gateway: {
@@ -381,6 +408,7 @@ async function setupGateway(
         mode: authMode as "token" | "password" | "none",
         ...(token ? { token } : {}),
         ...(password ? { password } : {}),
+        requireLocalAuth,
       },
     },
   };
@@ -498,6 +526,20 @@ async function setupTelegramAdmin(
     placeholder: "@miusuario o 123456789",
   });
 
+  // Pre-aprobar al usuario automáticamente si proporcionó su ID
+  const trimmedUserId = userId.trim();
+  if (trimmedUserId) {
+    try {
+      await addChannelAllowFromStoreEntry({ channel: "telegram", entry: trimmedUserId });
+      await prompter.note(
+        `✅ Tu usuario (${trimmedUserId}) fue pre-aprobado automáticamente.\n   Podrás usar el bot inmediatamente.`,
+        "Acceso configurado"
+      );
+    } catch (err) {
+      logger("failed to pre-approve telegram user", { userId: trimmedUserId, error: String(err) });
+    }
+  }
+
   return {
     ...config,
     channels: {
@@ -506,7 +548,7 @@ async function setupTelegramAdmin(
         ...config.channels?.telegram,
         enabled: true,
         botToken: trimmedToken,
-        allowFrom: userId.trim() ? [userId.trim()] : undefined,
+        allowFrom: trimmedUserId ? [trimmedUserId] : undefined,
         dmPolicy: dmPolicy as "pairing" | "allowlist" | "open",
       },
     },
@@ -664,7 +706,7 @@ async function setupWhatsAppAdicionales(
             ...nextConfig.channels?.whatsapp?.accounts,
             [acc.id]: {
               phoneNumber: acc.phone,
-              role: acc.role,
+              role: acc.role as 'public' | 'support' | 'purchasing' | 'private',
               purpose: acc.purpose,
             },
           },

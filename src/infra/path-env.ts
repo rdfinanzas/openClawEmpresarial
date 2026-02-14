@@ -55,21 +55,23 @@ function candidateBinDirs(opts: EnsureOpenClawPathOpts): string[] {
 
   const candidates: string[] = [];
 
-  // Bundled macOS app: `openclaw` lives next to the executable (process.execPath).
+  // Bundled macOS app: CLI lives next to the executable (process.execPath).
+  // Check for both 'agento' (current) and 'openclaw' (legacy).
   try {
     const execDir = path.dirname(execPath);
-    const siblingCli = path.join(execDir, "openclaw");
-    if (isExecutable(siblingCli)) {
+    const siblingCliAgento = path.join(execDir, "agento");
+    const siblingCliOpenclaw = path.join(execDir, "openclaw");
+    if (isExecutable(siblingCliAgento) || isExecutable(siblingCliOpenclaw)) {
       candidates.push(execDir);
     }
   } catch {
     // ignore
   }
 
-  // Project-local installs (best effort): if a `node_modules/.bin/openclaw` exists near cwd,
+  // Project-local installs (best effort): if a `node_modules/.bin/agento` or `openclaw` exists near cwd,
   // include it. This helps when running under launchd or other minimal PATH environments.
   const localBinDir = path.join(cwd, "node_modules", ".bin");
-  if (isExecutable(path.join(localBinDir, "openclaw"))) {
+  if (isExecutable(path.join(localBinDir, "agento")) || isExecutable(path.join(localBinDir, "openclaw"))) {
     candidates.push(localBinDir);
   }
 
@@ -98,7 +100,7 @@ function candidateBinDirs(opts: EnsureOpenClawPathOpts): string[] {
 }
 
 /**
- * Best-effort PATH bootstrap so skills that require the `openclaw` CLI can run
+ * Best-effort PATH bootstrap so skills that require the CLI (agento/openclaw) can run
  * under launchd/minimal environments (and inside the macOS app bundle).
  */
 export function ensureOpenClawCliOnPath(opts: EnsureOpenClawPathOpts = {}) {

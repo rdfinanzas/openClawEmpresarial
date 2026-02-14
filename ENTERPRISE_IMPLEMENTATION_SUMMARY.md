@@ -297,4 +297,139 @@ El bundler rolldown tiene un bug (#8184) con `__exportAll`. El script `scripts/f
 
 ---
 
+## Requisitos de Producción
+
+### Checklist de Seguridad
+
+- [ ] **Gateway Authentication**
+  - [ ] Token o password configurado
+  - [ ] `requireLocalAuth: true` para máxima seguridad
+  - [ ] No exponer el gateway a internet sin autenticación
+
+- [ ] **Canales**
+  - [ ] Telegram configurado como canal admin
+  - [ ] Allowlist o pairing habilitado para DMs
+  - [ ] Cuentas WhatsApp con roles apropiados
+
+- [ ] **LLM**
+  - [ ] API Keys configuradas en auth profiles (no en .env)
+  - [ ] Modelo por defecto configurado
+  - [ ] Fallbacks configurados si es necesario
+
+- [ ] **Sistema**
+  - [ ] Node.js 22+ instalado
+  - [ ] Firewall configurado (solo puertos necesarios abiertos)
+  - [ ] Logs centralizados
+  - [ ] Monitoreo de salud configurado
+
+### Configuración de Autenticación Recomendada
+
+#### Desarrollo (localhost)
+```json5
+gateway: {
+  auth: {
+    mode: "token",
+    token: "dev-token",
+    requireLocalAuth: false  // Permite bypass en localhost
+  }
+}
+```
+
+#### Producción (acceso remoto)
+```json5
+gateway: {
+  bind: "lan",  // o "tailscale"
+  auth: {
+    mode: "token",
+    token: "${AGENTO_GATEWAY_TOKEN}",  // Desde variable de entorno
+    requireLocalAuth: true  // Siempre requiere auth
+  }
+}
+```
+
+### Puertos Utilizados
+
+| Puerto | Servicio | Notas |
+|--------|----------|-------|
+| 18789 | Gateway WS + HTTP | Principal |
+| 18793 | Canvas Host | Archivos estáticos |
+
+---
+
+## Guía de Despliegue
+
+### Opción 1: Docker (Recomendado)
+
+```bash
+# Construir imagen
+docker build -t agento:latest .
+
+# Ejecutar con docker-compose
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+```
+
+### Opción 2: systemd (Linux)
+
+```bash
+# Crear servicio
+sudo nano /etc/systemd/system/agento.service
+
+# Contenido:
+[Unit]
+Description=Agento Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=agento
+WorkingDirectory=/opt/agento
+ExecStart=/usr/bin/node agento.mjs gateway
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+
+# Habilitar
+sudo systemctl enable agento
+sudo systemctl start agento
+```
+
+### Opción 3: launchd (macOS)
+
+```bash
+# Crear plist
+~/Library/LaunchAgents/com.agento.gateway.plist
+```
+
+---
+
+## Troubleshooting Común
+
+### Gateway no inicia
+- **Puerto ocupado:** Verificar con `lsof -i :18789`
+- **Config inválida:** Ejecutar `agento doctor`
+- **Permisos:** Verificar permisos de `~/.agento`
+
+### Comandos del bot fallan
+- **CLI no en PATH:** Verificar que `agento` esté accesible
+- **Permisos:** Verificar permisos de ejecución
+- **Logs:** Revisar logs del gateway para errores
+
+### WhatsApp no conecta
+- **QR expirado:** Reescanear con `agento channels login whatsapp`
+- **Sesión inválida:** Eliminar sesión y reautenticar
+- **Rate limiting:** Esperar si hubo muchos intentos
+
+### Errores de autenticación
+- **Token inválido:** Verificar `gateway.auth.token`
+- **requireLocalAuth:** Si está activo, asegurar que el token se envía
+- **Tailscale:** Verificar configuración de allowTailscale
+
+---
+
 *Última actualización: 2026-02-14*

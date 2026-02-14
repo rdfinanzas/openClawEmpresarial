@@ -1,7 +1,8 @@
 import { replaceCliName, resolveCliName } from "./cli-name.js";
 import { normalizeProfileName } from "./profile-utils.js";
 
-const CLI_PREFIX_RE = /^(?:pnpm|npm|bunx|npx)\s+openclaw\b|^openclaw\b/;
+// Match both 'agento' (current) and 'openclaw' (legacy) for backwards compatibility
+const CLI_PREFIX_RE = /^(?:pnpm|npm|bunx|npx)\s+(?:agento|openclaw)\b|^(?:agento|openclaw)\b/;
 const PROFILE_FLAG_RE = /(?:^|\s)--profile(?:\s|=|$)/;
 const DEV_FLAG_RE = /(?:^|\s)--dev(?:\s|$)/;
 

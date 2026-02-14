@@ -2,8 +2,9 @@ import path from "node:path";
 
 export const DEFAULT_CLI_NAME = "agento";
 
-const KNOWN_CLI_NAMES = new Set([DEFAULT_CLI_NAME]);
-const CLI_PREFIX_RE = /^(?:((?:pnpm|npm|bunx|npx)\s+))?(agento)\b/;
+// Support both 'agento' (current) and 'openclaw' (legacy) for backwards compatibility
+const KNOWN_CLI_NAMES = new Set([DEFAULT_CLI_NAME, "openclaw"]);
+const CLI_PREFIX_RE = /^(?:((?:pnpm|npm|bunx|npx)\s+))?(agento|openclaw)\b/;
 
 export function resolveCliName(argv: string[] = process.argv): string {
   const argv1 = argv[1];

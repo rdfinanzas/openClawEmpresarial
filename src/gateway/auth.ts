@@ -8,13 +8,14 @@ import {
   parseForwardedForClientIp,
   resolveGatewayClientIp,
 } from "./net.js";
-export type ResolvedGatewayAuthMode = "token" | "password";
+export type ResolvedGatewayAuthMode = "token" | "password" | "none";
 
 export type ResolvedGatewayAuth = {
   mode: ResolvedGatewayAuthMode;
   token?: string;
   password?: string;
   allowTailscale: boolean;
+  requireLocalAuth: boolean;
 };
 
 export type GatewayAuthResult = {
@@ -199,11 +200,13 @@ export function resolveGatewayAuth(params: {
   const mode: ResolvedGatewayAuth["mode"] = authConfig.mode ?? (password ? "password" : "token");
   const allowTailscale =
     authConfig.allowTailscale ?? (params.tailscaleMode === "serve" && mode !== "password");
+  const requireLocalAuth = authConfig.requireLocalAuth ?? false;
   return {
     mode,
     token,
     password,
     allowTailscale,
+    requireLocalAuth,
   };
 }
 
@@ -232,6 +235,10 @@ export async function authorizeGatewayConnect(params: {
   const tailscaleWhois = params.tailscaleWhois ?? readTailscaleWhoisIdentity;
   const localDirect = isLocalDirectRequest(req, trustedProxies);
 
+  // If requireLocalAuth is true, always require authentication
+  // Otherwise, skip auth for local direct requests
+  const skipAuth = localDirect && !auth.requireLocalAuth;
+
   if (auth.allowTailscale && !localDirect) {
     const tailscaleCheck = await resolveVerifiedTailscaleUser({
       req,
@@ -244,6 +251,11 @@ export async function authorizeGatewayConnect(params: {
         user: tailscaleCheck.user.login,
       };
     }
+  }
+
+  // Allow local direct connections to bypass auth unless requireLocalAuth is set
+  if (skipAuth) {
+    return { ok: true, method: "device-token" };
   }
 
   if (auth.mode === "token") {
