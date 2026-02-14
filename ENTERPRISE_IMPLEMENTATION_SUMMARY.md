@@ -1,266 +1,28 @@
-# OpenClaw Empresarial - Análisis e Implementación
+# Agento - Resumen de Implementación Empresarial
 
-## Resumen Ejecutivo
+## Identidad del Proyecto
 
-**OpenClaw** es una plataforma de asistente de IA personal que se ejecuta en tus propios dispositivos. Funciona como un gateway multi-canal con integraciones de mensajería extensibles, permitiendo comunicación con IA a través de múltiples canales de mensajería. La versión empresarial ofrece funcionalidades avanzadas para negocios incluyendo bots de doble personalidad, integración de APIs externas, y controles de seguridad robustos.
+**Agento** es un fork de OpenClaw optimizado para uso empresarial con:
+- Sistema de doble personalidad (Ventas/Admin)
+- Multi-cuenta WhatsApp empresarial
+- Soporte para LLMs chinos (DeepSeek, Kimi, GLM, Qwen, MiniMax)
+- Wizard unificado en español
 
----
-
-## Arquitectura General
-
-### 1. Componentes Principales
-
-#### Gateway (src/gateway/)
-- **WebSocket control plane** (puerto por defecto 18789)
-- Hub central que gestiona todas las conexiones de superficies de mensajería
-- Administra sesiones, presencia, configuración, cron jobs, webhooks
-- Sirve Control UI y WebChat directamente
-- Emite eventos: `agent`, `chat`, `presence`, `health`, `heartbeat`, `cron`
-
-#### CLI (src/cli/, src/commands/)
-- Interfaz principal mediante comando `openclaw`
-- Comandos clave:
-  - `openclaw onboard` - Asistente de configuración inicial
-  - `openclaw gateway` - Iniciar gateway
-  - `openclaw agent` - Conversar con IA
-  - `openclaw enterprise setup` - Configuración empresarial
-  - `openclaw channels` - Gestión de canales
-  - `openclaw config` - Gestión de configuración
-
-#### Sistema de Agentes (src/agents/)
-- Enrutamiento multi-agente con aislamiento
-- Workspaces, sesiones y sandboxing por agente
-- Comunicación agente-a-agente mediante herramientas `sessions_*`
-- Configuración de personalidad para modo empresarial dual
-
-#### Canales de Mensajería (src/channels/)
-Integraciones con múltiples plataformas:
-- **WhatsApp** (via Baileys Web)
-- **Telegram** (via grammY)
-- **Discord** (via discord.js)
-- **Slack** (Socket Mode)
-- **Google Chat** (Chat API)
-- **Signal** (signal-cli)
-- **iMessage** (via imsg CLI)
-- **WebChat** (Gateway WebSocket)
-- **Extensiones**: Microsoft Teams, Matrix, Zalo, Mattermost, BlueBubbles, y más
-
-### 2. Flujo de Datos
-
-```
-Usuario → Canal (WhatsApp/Telegram/etc) → Gateway → Agente IA → Respuesta
-                    ↓
-              Web Provider (Control UI)
-```
+| Aspecto | Valor |
+|---------|-------|
+| **Nombre** | Agento |
+| **Base** | OpenClaw (fork) |
+| **Versión** | 2026.2.10 |
+| **Entry point** | `agento.mjs` |
+| **Comando** | `agento` |
 
 ---
 
-## Funcionalidades Empresariales
-
-### 1. Sistema de Doble Personalidad
-
-#### Personalidad de Ventas (Pública)
-- **Canales**: WhatsApp, Discord (público)
-- **Acceso limitado**: Sin comandos de sistema, sin búsqueda web
-- **Áreas de expertise predefinidas**: Catálogo, precios, disponibilidad
-- **Restricciones de seguridad**: Validación de consultas, detección de ingeniería social
-- **Escalamiento automático**: Redirige a admin cuando detecta intentos de manipulación
-
-#### Personalidad de Administrador (Privada)
-- **Canales**: Telegram (privado), Control UI
-- **Acceso completo**: Todos los comandos y herramientas del sistema
-- **Recepción de alertas**: Notificaciones de seguridad en tiempo real
-- **Toma de control**: Puede intervenir conversaciones de ventas
-- **Gestión de agentes**: Configura y supervisa agentes de ventas
-
-### 2. Multi-Cuenta WhatsApp Empresarial
-
-Configuración de múltiples cuentas WhatsApp para diferentes funciones:
-
-| Cuenta | Función | Descripción |
-|--------|---------|-------------|
-| **VENTAS** | Servicio al cliente público | Atención a clientes, consultas de productos |
-| **COMPRAS** | Gestión de proveedores | Órdenes de compra, seguimiento de inventario |
-| **SOPORTE** | Soporte técnico | Resolución de problemas técnicos |
-| Personalizada | Cualquier función específica | Configurable según necesidades |
-
-### 3. Integración de APIs Empresariales
-
-#### Gestor de APIs (src/enterprise/)
-
-**api-manager.ts**: Gestiona integraciones externas
-- Conexión a cualquier API REST (stock, órdenes, citas, etc.)
-- Soporta métodos: GET, POST, PUT, PATCH, DELETE
-- Autenticación: Bearer Token, API Key, Basic Auth, OAuth2
-- Generación dinámica de herramientas IA desde definiciones de API
-
-**dynamic-api-manager.ts**: Configuración runtime de APIs
-- Añadir/quitar APIs sin reiniciar
-- Configuración de endpoints y parámetros
-- Gestión de credenciales segura
-
-**tool-generator.ts**: Generador de herramientas IA
-- Crea herramientas automáticamente desde especificaciones OpenAPI/Swagger
-- Mapeo de parámetros entre conversación natural y API
-- Documentación inline para el agente
-
-**api-executor.ts**: Ejecutor de APIs
-- Ejecución segura de llamadas API
-- Manejo de errores y reintentos
-- Logging de auditoría
-
-### 4. Características de Seguridad
-
-#### Detección Anti-Ingeniería Social
-- **Análisis semántico**: Detecta patrones de manipulación en mensajes
-- **Palabras clave sensibles**: Identifica intentos de obtener credenciales
-- **Validación de contexto**: Verifica que las consultas sean legítimas
-- **Bloqueo proactivo**: Previene respuestas a consultas maliciosas
-
-#### Sistema de Alertas
-- **Alertas en tiempo real**: Notificaciones inmediatas al admin
-- **Canales de alerta**: Telegram prioritario, email, webhook
-- **Clasificación de severidad**: Crítica, Alta, Media, Baja
-- **Logs de auditoría**: Trazabilidad completa de eventos de seguridad
-
-#### Control de Acceso Basado en Roles
-- **Roles por canal**: Permisos específicos por canal de comunicación
-- **Sandboxing**: Aislamiento de sesiones no-admin
-- **Allowlists**: Listas blancas de usuarios/contactos autorizados
-- **Políticas DM**: Control de mensajes directos
-
-### 5. Sistema de Escalamiento
-
-#### Triggers Automáticos
-- Detección de frases sensibles ("olvido mi contraseña", "acceso de emergencia")
-- Consultas fuera del scope de ventas
-- Intentos de manipulación detectados
-- Solicitudes explícitas de hablar con humano
-
-#### Proceso de Escalamiento
-1. **Detección**: Agente de ventas identifica situación que requiere admin
-2. **Notificación**: Envía mensaje a admin vía `sessions_send`
-3. **Contexto**: Incluye historial de conversación y razón de escalamiento
-4. **Intervención**: Admin puede tomar control o responder directamente
-5. **Resolución**: Admin responde o delega de vuelta a ventas
-
----
-
-## Comandos CLI Empresariales
-
-```bash
-# Configuración
-openclaw enterprise setup              # Configurar modo empresarial
-openclaw enterprise status             # Ver configuración actual
-openclaw enterprise reconfigure        # Actualizar personalidades
-
-# Pruebas
-openclaw enterprise test-sales         # Probar personalidad de ventas
-openclaw enterprise test-admin         # Probar personalidad de admin
-
-# Gestión de APIs
-openclaw enterprise apis               # Listar APIs configuradas
-openclaw enterprise apis add           # Añadir nueva API
-openclaw enterprise apis remove        # Eliminar API
-openclaw enterprise test-api <id>      # Probar conexión API
-```
-
----
-
-## Estructura de Configuración
-
-### Ubicación
-`~/.openclaw/openclaw.json` (formato JSON5)
-
-### Secciones Principales
-
-```json5
-{
-  // Agentes
-  agents: {
-    main: { /* Agente principal */ },
-    sales: { /* Agente de ventas */ },
-    support: { /* Agente de soporte */ }
-  },
-  
-  // Canales
-  channels: {
-    whatsapp: { /* Config WhatsApp */ },
-    telegram: { /* Config Telegram */ },
-    discord: { /* Config Discord */ }
-  },
-  
-  // Empresarial
-  enterprise: {
-    businessPersonality: {
-      sales: { /* Personalidad ventas */ },
-      admin: { /* Personalidad admin */ }
-    },
-    apis: [ /* APIs integradas */ ],
-    features: {
-      dualPersonality: true,
-      securityAlerts: true,
-      autoEscalation: true
-    }
-  },
-  
-  // Gateway
-  gateway: {
-    port: 18789,
-    auth: { /* Configuración auth */ },
-    tailscale: { /* Config Tailscale */ }
-  },
-  
-  // Modelos
-  models: {
-    default: "claude-sonnet-4-20250514",
-    providers: { /* Config proveedores */ }
-  },
-  
-  // Seguridad
-  security: {
-    dmPolicies: { /* Políticas DM */ },
-    allowlists: { /* Listas blancas */ },
-    sandbox: { /* Config sandbox */ }
-  }
-}
-```
-
----
-
-## Casos de Uso Empresariales
-
-### 1. E-commerce con Atención al Cliente
-- **WhatsApp VENTAS**: Consultas de productos, disponibilidad, precios
-- **WhatsApp COMPRAS**: Gestión de inventario con proveedores
-- **Telegram Admin**: Supervisión, alertas de seguridad, consultas complejas
-- **APIs**: Integración con sistema de stock, pasarela de pagos, logística
-
-### 2. Servicios Profesionales (Consultoría, Legal, etc.)
-- **WhatsApp**: Agendamiento de citas, consultas iniciales
-- **Discord**: Comunidad de clientes, FAQs
-- **Telegram Admin**: Casos complejos, documentación sensible
-- **APIs**: Calendario, CRM, facturación
-
-### 3. Soporte Técnico
-- **WhatsApp SOPORTE**: Tickets nivel 1, troubleshooting básico
-- **Escalamiento**: Casos complejos al equipo técnico senior
-- **Telegram Admin**: Gestión de incidencias críticas
-- **APIs**: Sistema de tickets, monitoreo, base de conocimiento
-
-### 4. Ventas B2B
-- **WhatsApp VENTAS**: Prospectos, cotizaciones, seguimiento
-- **WhatsApp COMPRAS**: Gestión con proveedores
-- **Telegram Admin**: Negociaciones importantes, aprobaciones
-- **APIs**: CRM, ERP, sistema de cotizaciones
-
----
-
-## Diagrama de Arquitectura Empresarial
+## Arquitectura
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    OPENCLAW ENTERPRISE                       │
+│                       AGENTO                                 │
 └─────────────────────────────────────────────────────────────┘
                               │
         ┌─────────────────────┼─────────────────────┐
@@ -268,118 +30,271 @@ openclaw enterprise test-api <id>      # Probar conexión API
         ▼                     ▼                     ▼
 ┌──────────────┐    ┌─────────────────┐    ┌──────────────┐
 │   CANALES    │    │     GATEWAY     │    │   AGENTES    │
-│  DE ENTRADA  │◄──►│   (Control Hub) │◄──►│     IA       │
+│  (WhatsApp,  │◄──►│   Puerto 18789  │◄──►│   (IA)       │
+│   Telegram,  │    │   WebSocket     │    │              │
+│   Discord)   │    │                 │    │              │
 └──────────────┘    └─────────────────┘    └──────────────┘
-        │                     │                     │
-        │            ┌────────┴────────┐            │
-        │            │                 │            │
-        ▼            ▼                 ▼            ▼
-┌──────────────┐ ┌──────────┐   ┌──────────┐ ┌──────────────┐
-│  WHATSAPP    │ │ Control  │   │  APIs    │ │   VENTAS     │
-│  - VENTAS    │ │   UI     │   │EXTERNAS  │ │   (Público)  │
-│  - COMPRAS   │ │ (Web)    │   │          │ │              │
-│  - SOPORTE   │ └──────────┘   └──────────┘ │   ADMIN      │
-└──────────────┐                             │   (Privado)  │
-│  TELEGRAM    │                             └──────────────┘
-│  (Admin)     │
+        │                     │
+        │            ┌────────┴────────┐
+        ▼            ▼                 ▼
+┌──────────────┐ ┌──────────┐   ┌──────────┐
+│   VENTAS     │ │ Control  │   │  APIs    │
+│  (Restringido│ │   UI     │   │Externas  │
+│   Público)   │ │ (Web)    │   │          │
+├──────────────┤ └──────────┘   └──────────┘
+│    ADMIN     │
+│  (Completo,  │
+│   Privado)   │
 └──────────────┘
-│   DISCORD    │
-│  (Público)   │
-└──────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│                    SEGURIDAD                                │
-│  • Detección anti-ing. social                               │
-│  • Alertas en tiempo real                                   │
-│  • Control de acceso por roles                              │
-│  • Sandboxing                                               │
-│  • Escalamiento automático                                  │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Requisitos Técnicos
+## Estructura de Directorios Clave
 
-### Sistema
-- **Node.js**: 22+ (runtime principal)
-- **Bun**: Alternativa para ejecución TypeScript
-- **Sistema operativo**: macOS, Linux, Windows
+```
+src/
+├── agents/           # Sistema de agentes y tools
+│   ├── tools/        # Herramientas del agente
+│   └── skills/       # Sistema de skills
+├── channels/         # Integraciones de mensajería
+│   ├── plugins/      # Acciones, normalización, outbound
+│   └── web/          # WebChat
+├── cli/              # Interfaz de línea de comandos
+├── commands/         # Comandos CLI individuales
+├── config/           # Schemas Zod de configuración
+├── enterprise/       # Módulos empresariales (NUEVO)
+│   ├── api-manager.ts
+│   ├── api-executor.ts
+│   ├── dynamic-api-manager.ts
+│   └── tool-generator.ts
+├── gateway/          # WebSocket server
+├── wizard/           # Wizards de configuración
+│   └── onboarding-unified.ts  # Wizard principal
+└── web/              # Interfaz web
 
-### Dependencias Clave
-- **Gateway**: WebSocket server, JSON Schema validation
-- **Canales**: Baileys (WhatsApp), grammY (Telegram), discord.js (Discord)
-- **IA**: Anthropic Claude, OpenAI GPT (vía providers)
-- **Seguridad**: Crypto, JWT, sandboxing
-
-### Infraestructura Recomendada
-- **Gateway**: Servidor dedicado o VPS (4GB+ RAM)
-- **Conexión**: Internet estable para WebSocket
-- **Almacenamiento**: SSD para logs y sesiones
-- **Backup**: Configuración en `~/.openclaw/`
-
----
-
-## Mejores Prácticas de Implementación
-
-### 1. Configuración Inicial
-1. Ejecutar `openclaw onboard` para setup inicial
-2. Configurar `openclaw enterprise setup` para modo empresarial
-3. Conectar canales uno por uno (WhatsApp primero, luego Telegram, etc.)
-4. Probar cada canal con `openclaw enterprise test-*`
-
-### 2. Seguridad
-- Mantener token de admin en canal privado (Telegram)
-- Configurar allowlists para canales públicos
-- Revisar regularmente logs de seguridad
-- Mantener actualizado OpenClaw (`npm i -g openclaw@latest`)
-
-### 3. APIs Externas
-- Usar variables de entorno para credenciales sensibles
-- Implementar rate limiting en APIs
-- Monitorear uso y costos de APIs
-- Documentar todas las integraciones
-
-### 4. Mantenimiento
-- Revisar `openclaw doctor` periódicamente
-- Actualizar extensiones cuando haya nuevas versiones
-- Hacer backup de `~/.openclaw/` regularmente
-- Monitorear recursos del servidor (CPU, RAM, disco)
+scripts/
+├── run-node.mjs      # Ejecutor principal
+├── fix-exportall.mjs # Fix para bug rolldown #8184
+└── *.mjs             # Varios scripts de utilidad
+```
 
 ---
 
-## Troubleshooting Común
+## Canales Soportados
 
-### Gateway no inicia
-- Verificar puerto 18789 disponible: `ss -ltnp | grep 18789`
-- Revisar logs: `openclaw gateway run` en modo verbose
-- Comprobar configuración: `openclaw config validate`
-
-### WhatsApp no conecta
-- Verificar sesión: `openclaw channels status`
-- Reescanear QR si es necesario
-- Comprobar conexión a internet
-
-### APIs no responden
-- Testear con `openclaw enterprise test-api <id>`
-- Verificar credenciales y permisos
-- Comprobar URL y endpoints
-
-### Alertas de seguridad falsas
-- Ajustar sensibilidad en configuración
-- Revisar logs para entender contexto
-- Actualizar palabras clave de detección
+| Canal | Librería | Uso Principal |
+|-------|----------|---------------|
+| WhatsApp | Baileys Web | Ventas, Soporte, Compras |
+| Telegram | grammY | Admin (obligatorio) |
+| Discord | discord.js | Comunidades |
+| Slack | Socket Mode | Equipos |
+| Signal | signal-cli | Privacidad |
+| iMessage | imsg CLI | iOS/macOS |
+| WebChat | WebSocket | Control UI |
 
 ---
 
-## Conclusión
+## LLMs Soportados
 
-OpenClaw Empresarial proporciona una plataforma completa para automatizar comunicaciones empresariales mediante IA, manteniendo el control y seguridad necesarios para entornos de producción. El sistema de doble personalidad permite separar claramente las interacciones públicas de las privadas, mientras que la integración de APIs permite conectar con sistemas existentes para crear flujos de trabajo automatizados.
+### Proveedores Occidentales
+- Anthropic (Claude)
+- OpenAI (GPT)
+- Google (Gemini)
 
-La arquitectura modular permite escalar desde un único emprendedor hasta equipos empresariales grandes, con soporte para múltiples canales y agentes especializados.
+### Proveedores Chinos (Configuración Automática)
+| Proveedor | Model ID |
+|-----------|----------|
+| DeepSeek | `deepseek/deepseek-chat` |
+| Kimi/Moonshot | `moonshot/kimi-k2.5` |
+| GLM (Z.AI) | `zai/glm-4.7` |
+| Qwen | `qwen/qwen-2.5` |
+| MiniMax | `minimax/m2.1` |
 
 ---
 
-*Documento generado el: 2026-02-13*
-*Versión de OpenClaw: Consultar package.json*
-*Repositorio: https://github.com/openclaw/openclaw*
+## Comandos CLI Principales
+
+```bash
+# Configuración inicial
+agento onboard                    # Wizard unificado (7 pasos)
+
+# Gateway
+agento gateway --port 18789       # Iniciar gateway
+agento gateway run               # Modo foreground
+
+# Canales
+agento channels login whatsapp   # Escanear QR
+agento channels status           # Ver estado
+
+# Empresarial
+agento enterprise setup          # Configurar dual-personality
+agento enterprise status         # Ver configuración
+agento enterprise apis           # Gestión de APIs
+
+# Diagnóstico
+agento doctor                    # Verificar sistema
+agento config validate           # Validar config
+```
+
+---
+
+## Configuración
+
+**Ubicación:** `~/.openclaw/openclaw.json` (JSON5)
+
+### Estructura Principal
+
+```json5
+{
+  // Gateway
+  gateway: {
+    port: 18789,
+    mode: "local",
+    bind: "loopback"
+  },
+
+  // Canales
+  channels: {
+    whatsapp: {
+      enabled: true,
+      accounts: [
+        { id: "ventas", role: "public", phoneNumber: "+..." },
+        { id: "compras", role: "purchasing" }
+      ]
+    },
+    telegram: {
+      enabled: true,
+      botToken: "...",
+      role: "admin"
+    }
+  },
+
+  // Modelos
+  models: {
+    default: "deepseek/deepseek-chat",
+    providers: { /* credenciales */ }
+  },
+
+  // Empresarial
+  enterprise: {
+    businessPersonality: {
+      sales: {
+        name: "Asistente de Ventas",
+        tone: "professional",
+        expertise: ["productos", "precios"],
+        restrictions: ["No modificar precios", "Sin datos sensibles"]
+      },
+      admin: {
+        name: "Asistente Admin",
+        capabilities: ["Gestión completa"],
+        escalationTriggers: ["urgente", "hablar con humano"]
+      }
+    },
+    features: {
+      dualPersonality: true,
+      securityAlerts: true,
+      autoEscalation: true
+    }
+  }
+}
+```
+
+---
+
+## Sistema de Doble Personalidad
+
+### Personalidad Ventas (Público)
+- **Canales:** WhatsApp, Discord
+- **Acceso:** Limitado (sin comandos de sistema)
+- **Tools:** Solo consulta
+- **Restricciones:** Sin modificar precios, sin datos sensibles
+
+### Personalidad Admin (Privado)
+- **Canales:** Telegram, Control UI
+- **Acceso:** Completo
+- **Tools:** Todas disponibles
+- **Alertas:** Recibe notificaciones de seguridad
+
+### Escalamiento Automático
+Triggers que activan escalamiento de Ventas → Admin:
+- "Hablar con un humano"
+- "Urgente" / "Emergencia"
+- Intentos de ingeniería social
+- Consultas fuera de scope
+- Solicitudes de credenciales
+
+---
+
+## Compilación y Desarrollo
+
+### Requisitos
+- Node.js 22+
+- pnpm 10.23.0
+
+### Comandos
+
+```bash
+# Instalar dependencias
+pnpm install
+
+# Compilar
+pnpm build
+
+# Desarrollo
+pnpm dev
+
+# Ejecutar
+node agento.mjs
+
+# Tests
+pnpm test
+```
+
+### Bug Conocido (Workaround)
+El bundler rolldown tiene un bug (#8184) con `__exportAll`. El script `scripts/fix-exportall.mjs` se ejecuta automáticamente post-build como workaround.
+
+---
+
+## Diferencias con OpenClaw Original
+
+| Aspecto | OpenClaw | Agento |
+|---------|----------|--------|
+| Nombre | openclaw | agento |
+| Enfoque | Personal | Empresarial |
+| Personalidades | Una | Dual (Ventas/Admin) |
+| WhatsApp | Una cuenta | Multi-cuenta |
+| LLMs chinos | Manual | Configuración automática |
+| Idioma wizard | Inglés | Español |
+| Módulo enterprise | No | Sí |
+
+### Archivos Nuevos
+- `src/enterprise/` - Gestión de APIs y tools dinámicos
+- `src/wizard/onboarding-unified.ts` - Wizard unificado
+- `src/config/zod-schema.enterprise.ts` - Schema empresarial
+- `scripts/fix-exportall.mjs` - Workaround rolldown
+
+### Archivos Modificados
+- `src/cli/cli-name.ts` - Cambio a "agento"
+- `src/cli/banner.ts` - Branding actualizado
+- `package.json` - Entry point y nombre
+
+---
+
+## Notas de Mantenimiento
+
+### Al actualizar desde upstream
+1. Revisar cambios en `src/agents/` y `src/channels/`
+2. Merge cuidadoso en `src/config/zod-schema.ts`
+3. Verificar que `scripts/fix-exportall.mjs` siga funcionando
+4. Probar wizard con `agento onboard`
+
+### Troubleshooting común
+- **Gateway no inicia:** Puerto 18789 ocupado
+- **WhatsApp no conecta:** Reescanear QR con `channels login`
+- **Error __exportAll:** Ejecutar `pnpm build` de nuevo
+- **Config inválida:** `agento doctor` para diagnóstico
+
+---
+
+*Última actualización: 2026-02-14*

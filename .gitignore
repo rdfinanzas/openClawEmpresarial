@@ -81,3 +81,8 @@ USER.md
 .agent/*.json
 !.agent/workflows/
 local/
+
+# Sensitive credentials (NEVER COMMIT)
+clave.md
+*.secret
+credentials/

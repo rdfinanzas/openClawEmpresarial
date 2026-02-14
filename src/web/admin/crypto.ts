@@ -1,89 +1,74 @@
 /**
- * Utilidades criptográficas para el panel de administración
- * 
- * - Generación de códigos seguros
- * - Hashing de passwords con bcrypt
- * - Generación de tokens
+ * Funciones criptograficas para el panel de administracion
  */
 
-import { randomBytes } from "node:crypto";
+import { randomBytes, pbkdf2 } from "node:crypto";
+
+const BCRYPT_ROUNDS = 12;
 
 /**
- * Genera un código numérico seguro para 2FA
- * @param length Longitud del código (default: 6)
- * @returns Código numérico como string
+ * Simple password hashing using PBKDF2 (bcrypt replacement)
+ * Format: $pbkdf2$rounds$salt$hash
  */
-export function generateSecureCode(length: number = 6): string {
-  const bytes = randomBytes(length);
-  let code = "";
-  
-  for (let i = 0; i < length; i++) {
-    // Usar solo dígitos 0-9
-    code += (bytes[i] % 10).toString();
+export async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("base64url");
+
+  const hash = await new Promise<Buffer>((resolve, reject) => {
+    pbkdf2(password, salt, 2 ** BCRYPT_ROUNDS, 64, "sha512", (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey);
+    });
+  });
+
+  return `$pbkdf2$${BCRYPT_ROUNDS}$${salt}$${hash.toString("base64url")}`;
+}
+
+/**
+ * Verify a password against a hash
+ */
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  if (!hash.startsWith("$pbkdf2$")) {
+    // Legacy format or invalid
+    return false;
   }
-  
+
+  const parts = hash.split("$");
+  if (parts.length !== 5) return false;
+
+  const [, , roundsStr, salt, storedHash] = parts;
+  if (!roundsStr || !salt || !storedHash) return false;
+
+  const rounds = parseInt(roundsStr, 10);
+
+  const derivedKey = await new Promise<Buffer>((resolve, reject) => {
+    pbkdf2(password, salt, 2 ** rounds, 64, "sha512", (err, key) => {
+      if (err) reject(err);
+      else resolve(key);
+    });
+  });
+
+  const computedHash = derivedKey.toString("base64url");
+  return computedHash === storedHash;
+}
+
+/**
+ * Generate a secure numeric code of specified length
+ */
+export function generateSecureCode(length: number): string {
+  const digits = "0123456789";
+  let code = "";
+  const bytes = randomBytes(length);
+
+  for (let i = 0; i < length; i++) {
+    code += digits[bytes[i]! % 10];
+  }
+
   return code;
 }
 
 /**
- * Genera un token aleatorio seguro
- * @param bytes Número de bytes (default: 32)
- * @returns Token en formato hex
+ * Generate a secure random token
  */
-export function generateSecureToken(bytes: number = 32): string {
-  return randomBytes(bytes).toString("hex");
-}
-
-/**
- * Importa bcrypt dinámicamente si está disponible
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getBcrypt(): Promise<any> {
-  // @ts-ignore - bcrypt es opcional
-  const bcrypt = await import("bcrypt").catch(() => null);
-  if (!bcrypt) {
-    throw new Error("bcrypt not available. Install with: npm install bcrypt");
-  }
-  return bcrypt;
-}
-
-/**
- * Hash de password usando bcrypt (si está disponible)
- * @param password Password en texto plano
- * @returns Hash del password
- */
-export async function hashPassword(password: string): Promise<string> {
-  const bcrypt = await getBcrypt();
-  const saltRounds = 10;
-  return bcrypt.hash(password, saltRounds);
-}
-
-/**
- * Verifica un password contra su hash
- * @param password Password en texto plano
- * @param hash Hash almacenado
- * @returns true si coincide
- */
-export async function verifyPassword(
-  password: string,
-  hash: string
-): Promise<boolean> {
-  const bcrypt = await getBcrypt();
-  return bcrypt.compare(password, hash);
-}
-
-/**
- * Genera un token temporal para el flujo de 2FA
- * @returns Token temporal de 64 caracteres hex
- */
-export function generateTempToken(): string {
-  return generateSecureToken(32);
-}
-
-/**
- * Genera un session token para el admin panel
- * @returns Session token
- */
-export function generateSessionToken(): string {
-  return `sess_${generateSecureToken(32)}`;
+export function generateSecureToken(length: number): string {
+  return randomBytes(length).toString("base64url");
 }
