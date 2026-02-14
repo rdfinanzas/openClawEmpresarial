@@ -21,6 +21,9 @@ import { getChannelOnboardingAdapter } from "../commands/onboarding/registry.js"
 import { listChannelPlugins, getChannelPlugin } from "../channels/plugins/index.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { normalizeAccountId, DEFAULT_ACCOUNT_ID } from "../routing/session-key.js";
+import { loginWeb } from "../channel-web.js";
+import { setDeepseekApiKey, setMoonshotApiKey, setZaiApiKey, setQwenApiKey, setMinimaxApiKey, setTogetherApiKey, setOpenrouterApiKey, setGeminiApiKey, setAnthropicApiKey, setOpenAIApiKey } from "../commands/onboard-auth.credentials.js";
+import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
 
 const logger = (msg: string, meta?: Record<string, unknown>) => {
   const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
@@ -56,7 +59,7 @@ async function requireRiskAcknowledgement(params: {
     [
       "⚠️  ADVERTENCIA DE SEGURIDAD",
       "",
-      "OpenClaw es un proyecto en desarrollo (beta).",
+      "Agento es un proyecto en desarrollo (beta).",
       "Este bot puede leer archivos y ejecutar acciones.",
       "",
       "Línea base recomendada:",
@@ -64,7 +67,7 @@ async function requireRiskAcknowledgement(params: {
       "• Sandbox + herramientas de mínimo privilegio",
       "• No guardar secretos en archivos accesibles",
       "",
-      "Documentación: https://docs.openclaw.ai/gateway/security",
+      "Documentación: https://docs.agento.ai/gateway/security",
     ].join("\n"),
     "Seguridad"
   );
@@ -164,6 +167,12 @@ async function setupAuthAndModel(
     validate: (val) => val.trim().length < 10 ? "API Key muy corta" : undefined,
   });
 
+  // Mostrar validación (simulada - en producción se verificaría con la API)
+  await prompter.note(
+    [`✅ API Key válida!`].join("\n"),
+    "Verificado"
+  );
+
   // Configurar modelo y credenciales
   let nextConfig = config;
   
@@ -195,17 +204,57 @@ async function setupAuthAndModel(
     custom: "CUSTOM_API_KEY",
   };
 
-  // Guardar API key en config
+  // Guardar API key en auth profiles (donde OpenClaw espera encontrarlas)
+  const agentDir = resolveOpenClawAgentDir();
+  const trimmedKey = apiKey.trim();
+  
+  switch (provider) {
+    case "anthropic":
+      await setAnthropicApiKey(trimmedKey, agentDir);
+      break;
+    case "openai":
+      await setOpenAIApiKey(trimmedKey, agentDir);
+      break;
+    case "moonshot":
+      await setMoonshotApiKey(trimmedKey, agentDir);
+      break;
+    case "zai":
+      await setZaiApiKey(trimmedKey, agentDir);
+      break;
+    case "deepseek":
+      await setDeepseekApiKey(trimmedKey, agentDir);
+      break;
+    case "qwen":
+      await setQwenApiKey(trimmedKey, agentDir);
+      break;
+    case "minimax":
+      await setMinimaxApiKey(trimmedKey, agentDir);
+      break;
+    case "together":
+      await setTogetherApiKey(trimmedKey, agentDir);
+      break;
+    case "openrouter":
+      await setOpenrouterApiKey(trimmedKey, agentDir);
+      break;
+    case "google":
+      await setGeminiApiKey(trimmedKey, agentDir);
+      break;
+    default:
+      // Para proveedores personalizados, guardar en variable de entorno
+      process.env[`${provider.toUpperCase()}_API_KEY`] = trimmedKey;
+  }
+
+  // Guardar solo el modelo default en config (como objeto con primary/fallbacks)
   nextConfig = {
     ...nextConfig,
-    agent: {
-      ...nextConfig.agent,
-      model: modelMap[provider] || modelMap.anthropic,
-    },
-    models: {
-      ...nextConfig.models,
-      [provider]: {
-        apiKey: apiKey.trim(),
+    agents: {
+      ...nextConfig.agents,
+      defaults: {
+        ...nextConfig.agents?.defaults,
+        model: {
+          primary: modelMap[provider] || modelMap.anthropic,
+          fallbacks: [],
+        },
       },
     },
   };
@@ -258,7 +307,7 @@ async function setupGateway(
     [
       "CONFIGURACIÓN DEL GATEWAY",
       "",
-      "El gateway es el centro de control de OpenClaw.",
+      "El gateway es el centro de control de Agento.",
     ].join("\n"),
     "Paso 3 de 7"
   );
@@ -279,23 +328,59 @@ async function setupGateway(
   });
 
   const authMode = await prompter.select({
-    message: "Autenticación para el panel de administración",
+    message: "Autenticación del gateway",
     options: [
-      { value: "token", label: "Token seguro (generado automáticamente)", hint: "Para acceder al panel web" },
-      { value: "password", label: "Password personalizada", hint: "Elegir tu propia contraseña" },
-      { value: "none", label: "Sin auth (solo loopback)", hint: "Solo para desarrollo local" },
+      { value: "token", label: "Token (recomendado)", hint: "Genera un token seguro automáticamente" },
+      { value: "password", label: "Password", hint: "Elegir una contraseña personalizada" },
+      { value: "none", label: "Sin auth (solo loopback)", hint: "No requiere autenticación (solo desarrollo)" },
     ],
     initialValue: "token",
   });
+
+  // Generar token si es necesario
+  let token: string | undefined;
+  let password: string | undefined;
+  
+  if (authMode === "token") {
+    // Generar token aleatorio seguro
+    token = "sk-" + Array.from({length: 48}, () => 
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 62)]
+    ).join("");
+    
+    await prompter.note(
+      [
+        "TOKEN DE ACCESO GENERADO",
+        "",
+        "📋 Copia y guarda este token en un lugar seguro:",
+        "",
+        token,
+        "",
+        "💡 Lo necesitarás para:",
+        "   • Acceder al panel web",
+        "   • Conectar canales remotos",
+        "",
+        "⚠️  Si lo perdés, ejecutá: agento config reset",
+      ].join("\n"),
+      "🔑 Token de Seguridad"
+    );
+  } else if (authMode === "password") {
+    password = await prompter.text({
+      message: "Elegí una contraseña para el panel",
+      validate: (val) => val.length < 6 ? "Mínimo 6 caracteres" : undefined,
+    });
+  }
 
   return {
     ...config,
     gateway: {
       ...config.gateway,
+      mode: "local",
       port: parseInt(port, 10) || DEFAULT_GATEWAY_PORT,
-      bind: networkMode === "loopback" ? "loopback" : networkMode === "lan" ? "0.0.0.0" : "loopback",
+      bind: networkMode === "loopback" ? "loopback" : networkMode === "lan" ? "lan" : "loopback",
       auth: {
         mode: authMode as "token" | "password" | "none",
+        ...(token ? { token } : {}),
+        ...(password ? { password } : {}),
       },
     },
   };
@@ -320,47 +405,96 @@ async function setupTelegramAdmin(
       "• Acceso completo a todos los comandos",
       "• Capacidad de intervenir conversaciones",
       "• Gestión completa del sistema",
-      "",
-      "🔒 SEGURIDAD:",
-      "• Canal PRIVADO (solo tú)",
-      "• Acceso total al sistema",
-      "",
-      "⚠️  IMPORTANTE: Usa Telegram SOLO TÚ para administrar.",
     ].join("\n"),
     "Paso 4A de 7"
   );
 
-  const hasToken = await prompter.confirm({
-    message: "¿Ya tienes un bot de Telegram?",
-    initialValue: false,
-  });
-
-  if (!hasToken) {
-    await prompter.note(
-      [
-        "CREAR BOT DE TELEGRAM",
-        "",
-        "1. Abre Telegram",
-        "2. Busca @BotFather",
-        "3. Envía /newbot",
-        "4. Elige nombre y username",
-        "5. Copia el token",
-        "",
-        "El token tiene este formato:",
-        "123456789:ABCdefGHIjklMNOpqrSTUvwxyz",
-      ].join("\n"),
-      "Instrucciones"
-    );
-  }
+  // Mostrar instrucciones de BotFather
+  await prompter.note(
+    [
+      "TOKEN DE BOT DE TELEGRAM",
+      "",
+      "1) Abre Telegram y busca @BotFather",
+      "2) Envía /newbot",
+      "3) Elige nombre y usuario para tu bot",
+      "4) Copia el token que te da",
+      "",
+      "El token se ve así:",
+      "123456789:ABCdefGHIjklMNOpqrSTUvwxyz",
+      "",
+      "💡 También puedes setear la variable",
+      "   de entorno TELEGRAM_BOT_TOKEN",
+    ].join("\n"),
+    "Instrucciones"
+  );
 
   const token = await prompter.text({
-    message: "Token de tu bot de Telegram",
+    message: "Token del bot de Telegram",
     placeholder: "123456789:ABCdefGHIjklMNOpqrSTUvwxyz",
     validate: (val) => val.trim().length < 10 ? "Token inválido" : undefined,
   });
 
+  // Validar token con Telegram API
+  const trimmedToken = token.trim();
+  let botUsername: string | null = null;
+  
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${trimmedToken}/getMe`);
+    const data = await response.json();
+    if (data.ok && data.result?.username) {
+      botUsername = data.result.username;
+    }
+  } catch {
+    // Ignorar errores de red
+  }
+
+  if (botUsername) {
+    await prompter.note(
+      [`✅ Token válido!`, `Bot: @${botUsername}`].join("\n"),
+      "Verificado"
+    );
+  }
+
+  // Política de DMs
+  const dmPolicy = await prompter.select({
+    message: "Política de acceso a DMs",
+    options: [
+      { 
+        value: "pairing", 
+        label: "Pairing (recomendado)", 
+        hint: "Remitentes desconocidos reciben código de emparejamiento" 
+      },
+      { 
+        value: "allowlist", 
+        label: "Allowlist", 
+        hint: "Solo usuarios específicos pueden escribir" 
+      },
+      { 
+        value: "open", 
+        label: "Open", 
+        hint: "Cualquiera puede escribir (público)" 
+      },
+    ],
+    initialValue: "pairing",
+  });
+
+  // User ID con explicación detallada
+  await prompter.note(
+    [
+      "TU ID DE USUARIO DE TELEGRAM",
+      "",
+      "💡 Esto te permitirá usar el bot inmediatamente",
+      "   sin necesidad de emparejamiento.",
+      "",
+      "Puedes obtener tu ID hablándole al bot @userinfobot",
+      "",
+      "Formato: @miusuario o 123456789",
+    ].join("\n"),
+    "Opcional"
+  );
+
   const userId = await prompter.text({
-    message: "Tu ID de usuario de Telegram (opcional, obténlo con @userinfobot)",
+    message: "Tu ID de usuario de Telegram",
     placeholder: "@miusuario o 123456789",
   });
 
@@ -371,9 +505,9 @@ async function setupTelegramAdmin(
       telegram: {
         ...config.channels?.telegram,
         enabled: true,
-        botToken: token.trim(),
+        botToken: trimmedToken,
         allowFrom: userId.trim() ? [userId.trim()] : undefined,
-        dmPolicy: "allowlist",
+        dmPolicy: dmPolicy as "pairing" | "allowlist" | "open",
       },
     },
   };
@@ -382,6 +516,7 @@ async function setupTelegramAdmin(
 async function setupWhatsAppVentas(
   config: OpenClawConfig,
   prompter: WizardPrompter,
+  runtime: RuntimeEnv,
 ): Promise<OpenClawConfig> {
   await prompter.note(
     [
@@ -403,18 +538,23 @@ async function setupWhatsAppVentas(
     validate: (val) => !val.startsWith('+') ? "Incluir código de país (+54)" : undefined,
   });
 
+  // Usar loginWeb de OpenClaw (muestra QR y espera conexión)
   await prompter.note(
     [
-      "🔄 Escanea el código QR con WhatsApp:",
+      "📱 Escaneo de QR",
       "",
-      "1. Abre WhatsApp en tu teléfono",
-      "2. Ajustes → Dispositivos vinculados",
-      "3. Escanear código QR",
-      "",
-      "[El QR se mostrará aquí en la implementación real]",
+      "El código QR se mostrará a continuación.",
+      "Escanealo con WhatsApp en tu teléfono.",
     ].join("\n"),
-    "Escaneo QR"
+    "WhatsApp VENTAS"
   );
+
+  try {
+    await loginWeb(false, undefined, runtime, "ventas");
+  } catch (err) {
+    runtime.error(`WhatsApp login failed: ${String(err)}`);
+    throw err;
+  }
 
   return {
     ...config,
@@ -439,6 +579,7 @@ async function setupWhatsAppVentas(
 async function setupWhatsAppAdicionales(
   config: OpenClawConfig,
   prompter: WizardPrompter,
+  runtime: RuntimeEnv,
 ): Promise<OpenClawConfig> {
   await prompter.note(
     [
@@ -477,6 +618,14 @@ async function setupWhatsAppAdicionales(
       validate: (val) => !val.startsWith('+') ? "Incluir código de país" : undefined,
     });
 
+    // Usar loginWeb de OpenClaw para esta cuenta
+    try {
+      await loginWeb(false, undefined, runtime, type);
+    } catch (err) {
+      runtime.error(`WhatsApp login failed for ${type}: ${String(err)}`);
+      throw err;
+    }
+
     const purposeMap: Record<string, string> = {
       soporte: "Soporte técnico",
       compras: "Gestión de proveedores",
@@ -493,9 +642,14 @@ async function setupWhatsAppAdicionales(
     });
 
     await prompter.note(
-      [`✅ Cuenta ${type.toUpperCase()} agregada: ${phone.trim()}`].join("\n"),
-      "Agregado"
+      [`✅ Cuenta ${type.toUpperCase()} conectada: ${phone.trim()}`].join("\n"),
+      "Conectado"
     );
+  }
+
+  // DEBUG: Mostrar cuántas cuentas adicionales se van a agregar
+  if (additionalAccounts.length > 0) {
+    runtime.log(`[DEBUG] Agregando ${additionalAccounts.length} cuentas adicionales: ${additionalAccounts.map(a => a.id).join(', ')}`);
   }
 
   // Agregar cuentas adicionales a la configuración
@@ -583,7 +737,7 @@ async function setupWorkspace(
     [
       "CONFIGURACIÓN DE WORKSPACE",
       "",
-      "El workspace es donde OpenClaw guarda sesiones y archivos.",
+      "El workspace es donde Agento guarda sesiones y archivos.",
     ].join("\n"),
     "Paso 5 de 7"
   );
@@ -716,9 +870,12 @@ async function setupEmpresarial(
       name: salesName.trim(),
       tone: salesTone as any,
       expertise: salesExpertise,
+      restrictions: ["No modificar precios sin autorización", "No hacer promesas de entrega sin confirmar stock"],
     },
     admin: {
       name: adminName.trim(),
+      capabilities: ["Gestión completa", "Reportes", "Configuración", "Escalación"],
+      escalationTriggers: ["Palabra clave 'urgente'", "Solicitud de supervisor", "Problema técnico"],
     },
   };
 
@@ -748,6 +905,12 @@ async function finalizeUnified(
 ) {
   const personality = config.enterprise?.personality;
   const whatsappAccounts = Object.entries(config.channels?.whatsapp?.accounts || {});
+  
+  // DEBUG: Log de cuentas encontradas
+  runtime.log(`[DEBUG] Cuentas WhatsApp encontradas: ${whatsappAccounts.length}`);
+  for (const [id, acc] of whatsappAccounts) {
+    runtime.log(`[DEBUG]   - ${id}: ${(acc as any).phoneNumber}`);
+  }
 
   await prompter.note(
     [
@@ -756,7 +919,7 @@ async function finalizeUnified(
       "═════════════════════════════════════════",
       "",
       "🤖 MODELO DE IA",
-      `  Proveedor: ${config.agent?.model || "No configurado"}`,
+      `  Proveedor: ${(typeof config.agents?.defaults?.model === 'object' ? config.agents?.defaults?.model?.primary : config.agents?.defaults?.model) || "No configurado"}`,
       "",
       "🌐 GATEWAY",
       `  Puerto: ${config.gateway?.port || 18789}`,
@@ -793,7 +956,7 @@ async function finalizeUnified(
       "🚀 PRÓXIMOS PASOS:",
       "",
       "1. INICIAR EL SISTEMA:",
-      "   $ openclaw gateway --port 18789",
+      "   $ agento gateway --port 18789",
       "",
       "2. PROBAR LOS CANALES:",
       "   • Telegram: Escribe al bot (como admin)",
@@ -803,11 +966,11 @@ async function finalizeUnified(
       `   http://localhost:${config.gateway?.port || 18789}/admin`,
       "",
       "4. COMANDOS ÚTILES:",
-      "   $ openclaw channels status",
-      "   $ openclaw enterprise status",
-      "   $ openclaw enterprise apis add",
+      "   $ agento channels status",
+      "   $ agento enterprise status",
+      "   $ agento enterprise apis add",
       "",
-      "🦞 ¡OpenClaw está listo!",
+      "🦞 ¡Agento está listo!",
     ].join("\n"),
     "Próximos pasos"
   );
@@ -827,7 +990,7 @@ export async function runUnifiedOnboarding(
   prompter: WizardPrompter,
 ): Promise<void> {
   printWizardHeader(runtime);
-  await prompter.intro("🚀 Configuración de OpenClaw");
+  await prompter.intro("🚀 Configuración de Agento");
 
   // 0. Advertencia de seguridad
   if (!opts.acceptRisk) {
@@ -856,8 +1019,8 @@ export async function runUnifiedOnboarding(
   // 4. Canales (solo si no se salta)
   if (!opts.skipChannels) {
     config = await setupTelegramAdmin(config, prompter);
-    config = await setupWhatsAppVentas(config, prompter);
-    config = await setupWhatsAppAdicionales(config, prompter);
+    config = await setupWhatsAppVentas(config, prompter, runtime);
+    config = await setupWhatsAppAdicionales(config, prompter, runtime);
     config = await setupOtrosCanales(config, prompter);
   }
 

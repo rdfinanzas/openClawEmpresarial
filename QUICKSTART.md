@@ -1,4 +1,4 @@
-# Quick Start - Usar OpenClaw Superadmin
+# Quick Start - Usar Agento Superadmin
 
 ## 🎯 Qué vamos a hacer
 
@@ -18,7 +18,7 @@ npx tsx start-system.mjs
 
 Deberías ver:
 ```
-🚀 Iniciando OpenClaw Admin System
+🚀 Iniciando Agento Admin System
 
 ==================================================
 ✅ Sistema iniciado en http://localhost:8765

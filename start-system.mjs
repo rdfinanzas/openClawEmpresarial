@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Script simple para iniciar el sistema OpenClaw con Superadmin
+ * Script simple para iniciar el sistema Agento con Superadmin
  * 
  * Uso: node start-system.mjs
  */
@@ -11,7 +11,7 @@ import { handleAdminHttpRequest } from './src/web/admin/index.js';
 
 const PORT = 8765;
 
-console.log('\n🚀 Iniciando OpenClaw Admin System\n');
+console.log('\n🚀 Iniciando Agento Admin System\n');
 console.log('=' .repeat(50));
 
 // Configuración simple en memoria

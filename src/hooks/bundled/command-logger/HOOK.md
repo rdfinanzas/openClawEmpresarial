@@ -1,12 +1,12 @@
 ---
 name: command-logger
 description: "Log all command events to a centralized audit file"
-homepage: https://docs.openclaw.ai/hooks#command-logger
+homepage: https://docs.agento.ai/hooks#command-logger
 metadata:
   {
     "openclaw":
       {
-        "emoji": "📝",
+        "emoji": "[LOG]",
         "events": ["command"],
         "install": [{ "id": "bundled", "kind": "bundled", "label": "Bundled with OpenClaw" }],
       },
@@ -22,7 +22,7 @@ Logs all command events (`/new`, `/reset`, `/stop`, etc.) to a centralized audit
 Every time you issue a command to the agent:
 
 1. **Captures event details** - Command action, timestamp, session key, sender ID, source
-2. **Appends to log file** - Writes a JSON line to `~/.openclaw/logs/commands.log`
+2. **Appends to log file** - Writes a JSON line to `~/.agento/logs/commands.log`
 3. **Silent operation** - Runs in the background without user notifications
 
 ## Output Format
@@ -43,7 +43,7 @@ Log entries are written in JSONL (JSON Lines) format:
 
 ## Log File Location
 
-`~/.openclaw/logs/commands.log`
+`~/.agento/logs/commands.log`
 
 ## Requirements
 
@@ -62,7 +62,7 @@ No configuration needed. The hook automatically:
 To disable this hook:
 
 ```bash
-openclaw hooks disable command-logger
+agento hooks disable command-logger
 ```
 
 Or via config:
@@ -90,7 +90,7 @@ The hook does not automatically rotate logs. To manage log size, you can:
    ```
 
 2. **Use logrotate** (Linux):
-   Create `/etc/logrotate.d/openclaw`:
+   Create `/etc/logrotate.d/agento`:
    ```
    /home/username/.openclaw/logs/commands.log {
        weekly

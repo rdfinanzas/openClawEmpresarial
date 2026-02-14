@@ -14,6 +14,12 @@ const ToolPolicyBySenderSchema = z.record(z.string(), ToolPolicySchema).optional
 export const WhatsAppAccountSchema = z
   .object({
     name: z.string().optional(),
+    /** Phone number for this WhatsApp account (display/metadata only). */
+    phoneNumber: z.string().optional(),
+    /** Role of this account: public (sales), private (admin), support, purchasing. */
+    role: z.enum(["public", "private", "support", "purchasing"]).optional(),
+    /** Purpose/description of this account (for display). */
+    purpose: z.string().optional(),
     capabilities: z.array(z.string()).optional(),
     markdown: MarkdownConfigSchema,
     configWrites: z.boolean().optional(),
@@ -78,6 +84,8 @@ export const WhatsAppAccountSchema = z
 
 export const WhatsAppConfigSchema = z
   .object({
+    /** Enable/disable WhatsApp channel. */
+    enabled: z.boolean().optional(),
     accounts: z.record(z.string(), WhatsAppAccountSchema.optional()).optional(),
     capabilities: z.array(z.string()).optional(),
     markdown: MarkdownConfigSchema,

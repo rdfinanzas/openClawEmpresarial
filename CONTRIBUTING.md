@@ -1,4 +1,4 @@
-# Contributing to OpenClaw
+# Contributing to Agento
 
 Welcome to the lobster tank! 🦞
 
@@ -39,7 +39,7 @@ Welcome to the lobster tank! 🦞
 
 ## Before You PR
 
-- Test locally with your OpenClaw instance
+- Test locally with your Agento instance
 - Run tests: `pnpm build && pnpm check && pnpm test`
 - Ensure CI checks pass
 - Keep PRs focused (one thing per PR)
@@ -79,7 +79,7 @@ We are currently prioritizing:
 
 - **Stability**: Fixing edge cases in channel connections (WhatsApp/Telegram).
 - **UX**: Improving the onboarding wizard and error messages.
-- **Skills**: For skill contributions, head to [ClawHub](https://clawhub.ai/) — the community hub for OpenClaw skills.
+- **Skills**: For skill contributions, head to [ClawHub](https://clawhub.ai/) — the community hub for Agento skills.
 - **Performance**: Optimizing token usage and compaction logic.
 
 Check the [GitHub Issues](https://github.com/openclaw/openclaw/issues) for "good first issue" labels!

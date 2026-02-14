@@ -750,7 +750,7 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
     );
     steps.push(uiBuildStep);
 
-    const doctorEntry = path.join(gitRoot, "openclaw.mjs");
+    const doctorEntry = path.join(gitRoot, "agento.mjs");
     const doctorEntryExists = await fs
       .stat(doctorEntry)
       .then(() => true)

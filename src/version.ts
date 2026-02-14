@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 
 declare const __OPENCLAW_VERSION__: string | undefined;
-const CORE_PACKAGE_NAME = "openclaw";
+const CORE_PACKAGE_NAME = "agento";
 
 const PACKAGE_JSON_CANDIDATES = [
   "../package.json",
@@ -61,7 +61,7 @@ export function resolveVersionFromModuleUrl(moduleUrl: string): string | null {
   );
 }
 
-// Single source of truth for the current OpenClaw version.
+// Single source of truth for the current Agento version.
 // - Embedded/bundled builds: injected define or env var.
 // - Dev/npm builds: package.json.
 export const VERSION =

@@ -241,3 +241,39 @@ export function setXaiApiKey(key: string, agentDir?: string) {
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
+
+export async function setDeepseekApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "deepseek:default",
+    credential: {
+      type: "api_key",
+      provider: "deepseek",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
+export async function setQwenApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "qwen:default",
+    credential: {
+      type: "api_key",
+      provider: "qwen",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
+export async function setOpenAIApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "openai:default",
+    credential: {
+      type: "api_key",
+      provider: "openai",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}

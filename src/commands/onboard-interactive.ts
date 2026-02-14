@@ -22,5 +22,10 @@ export async function runInteractiveOnboarding(
     throw err;
   } finally {
     restoreTerminalState("onboarding finish");
+    // Pausar stdin para permitir que el proceso termine limpiamente
+    // (clack/prompts deja stdin en modo raw)
+    if (!process.stdin.isPaused()) {
+      process.stdin.pause();
+    }
   }
 }

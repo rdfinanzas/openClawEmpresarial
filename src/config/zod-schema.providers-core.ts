@@ -157,6 +157,7 @@ export const TelegramAccountSchema = TelegramAccountSchemaBase.superRefine((valu
 
 export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
   accounts: z.record(z.string(), TelegramAccountSchema.optional()).optional(),
+  enabled: z.boolean().optional(),
 }).superRefine((value, ctx) => {
   requireOpenAllowFrom({
     policy: value.dmPolicy,
@@ -332,6 +333,8 @@ export const DiscordAccountSchema = z
 
 export const DiscordConfigSchema = DiscordAccountSchema.extend({
   accounts: z.record(z.string(), DiscordAccountSchema.optional()).optional(),
+  /** Role of this channel: public (sales), private (admin), support, purchasing. */
+  role: z.enum(["public", "private", "support", "purchasing"]).optional(),
 });
 
 export const GoogleChatDmSchema = z
@@ -404,6 +407,8 @@ export const GoogleChatAccountSchema = z
 export const GoogleChatConfigSchema = GoogleChatAccountSchema.extend({
   accounts: z.record(z.string(), GoogleChatAccountSchema.optional()).optional(),
   defaultAccount: z.string().optional(),
+  /** Role of this channel: public (sales), private (admin), support, purchasing. */
+  role: z.enum(["public", "private", "support", "purchasing"]).optional(),
 });
 
 export const SlackDmSchema = z
@@ -520,6 +525,8 @@ export const SlackConfigSchema = SlackAccountSchema.extend({
   mode: z.enum(["socket", "http"]).optional().default("socket"),
   signingSecret: z.string().optional(),
   webhookPath: z.string().optional().default("/slack/events"),
+  /** Role of this channel: public (sales), private (admin), support, purchasing. */
+  role: z.enum(["public", "private", "support", "purchasing"]).optional(),
   accounts: z.record(z.string(), SlackAccountSchema.optional()).optional(),
 }).superRefine((value, ctx) => {
   const baseMode = value.mode ?? "socket";
@@ -612,6 +619,8 @@ export const SignalAccountSchema = SignalAccountSchemaBase.superRefine((value, c
 
 export const SignalConfigSchema = SignalAccountSchemaBase.extend({
   accounts: z.record(z.string(), SignalAccountSchema.optional()).optional(),
+  /** Role of this channel: public (sales), private (admin), support, purchasing. */
+  role: z.enum(["public", "private", "support", "purchasing"]).optional(),
 }).superRefine((value, ctx) => {
   requireOpenAllowFrom({
     policy: value.dmPolicy,

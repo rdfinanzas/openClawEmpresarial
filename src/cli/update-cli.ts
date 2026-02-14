@@ -205,9 +205,13 @@ async function isCorePackage(root: string): Promise<boolean> {
 }
 
 async function tryWriteCompletionCache(root: string, jsonMode: boolean): Promise<void> {
-  const binPath = path.join(root, "openclaw.mjs");
+  // Try new name first, then legacy
+  let binPath = path.join(root, "agento.mjs");
   if (!(await pathExists(binPath))) {
-    return;
+    binPath = path.join(root, "openclaw.mjs");
+    if (!(await pathExists(binPath))) {
+      return;
+    }
   }
   const result = spawnSync(resolveNodeRunner(), [binPath, "completion", "--write-state"], {
     cwd: root,

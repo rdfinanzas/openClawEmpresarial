@@ -11,6 +11,7 @@ import {
   SessionSchema,
   SessionSendPolicySchema,
 } from "./zod-schema.session.js";
+import { EnterpriseConfigSchema } from "./zod-schema.enterprise.js";
 
 const BrowserSnapshotDefaultsSchema = z
   .object({
@@ -596,6 +597,7 @@ export const OpenClawSchema = z
       })
       .strict()
       .optional(),
+    enterprise: EnterpriseConfigSchema,
   })
   .strict()
   .superRefine((cfg, ctx) => {

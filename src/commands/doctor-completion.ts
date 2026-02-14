@@ -27,7 +27,11 @@ async function generateCompletionCache(): Promise<boolean> {
     return false;
   }
 
-  const binPath = path.join(root, "openclaw.mjs");
+  // Try new name first, then legacy
+  let binPath = path.join(root, "agento.mjs");
+  if (!require("fs").existsSync(binPath)) {
+    binPath = path.join(root, "openclaw.mjs");
+  }
   const result = spawnSync(process.execPath, [binPath, "completion", "--write-state"], {
     cwd: root,
     env: process.env,

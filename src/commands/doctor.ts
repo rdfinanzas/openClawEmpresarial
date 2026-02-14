@@ -289,7 +289,7 @@ export async function doctorCommand(
       runtime.log(`Backup: ${shortenHomePath(backupPath)}`);
     }
   } else {
-    runtime.log(`Run "${formatCliCommand("openclaw doctor --fix")}" to apply changes.`);
+    runtime.log(`Run "${formatCliCommand("agento doctor --fix")}" to apply changes.`);
   }
 
   if (options.workspaceSuggestions !== false) {

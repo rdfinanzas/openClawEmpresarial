@@ -43,6 +43,7 @@ import { resolveUserPath } from "../utils.js";
 import { finalizeOnboardingWizard } from "./onboarding.finalize.js";
 import { configureGatewayForOnboarding } from "./onboarding.gateway-config.js";
 import { WizardCancelledError, type WizardPrompter } from "./prompts.js";
+import { runEnterpriseWizard } from "./onboarding-enterprise.js";
 
 async function requireRiskAcknowledgement(params: {
   opts: OnboardOptions;
@@ -56,7 +57,7 @@ async function requireRiskAcknowledgement(params: {
     [
       "Security warning — please read.",
       "",
-      "OpenClaw is a hobby project and still in beta. Expect sharp edges.",
+      "Agento is a hobby project and still in beta. Expect sharp edges.",
       "This bot can read files and run actions if tools are enabled.",
       "A bad prompt can trick it into doing unsafe things.",
       "",
@@ -70,10 +71,10 @@ async function requireRiskAcknowledgement(params: {
       "- Use the strongest available model for any bot with tools or untrusted inboxes.",
       "",
       "Run regularly:",
-      "openclaw security audit --deep",
-      "openclaw security audit --fix",
+      "agento security audit --deep",
+      "agento security audit --fix",
       "",
-      "Must read: https://docs.openclaw.ai/gateway/security",
+      "Must read: https://docs.agento.ai/gateway/security",
     ].join("\n"),
     "Security",
   );
@@ -93,7 +94,7 @@ export async function runOnboardingWizard(
   prompter: WizardPrompter,
 ) {
   printWizardHeader(runtime);
-  await prompter.intro("OpenClaw onboarding");
+  await prompter.intro("Agento onboarding");
   await requireRiskAcknowledgement({ opts, prompter });
 
   const snapshot = await readConfigFileSnapshot();
@@ -106,19 +107,19 @@ export async function runOnboardingWizard(
         [
           ...snapshot.issues.map((iss) => `- ${iss.path}: ${iss.message}`),
           "",
-          "Docs: https://docs.openclaw.ai/gateway/configuration",
+          "Docs: https://docs.agento.ai/gateway/configuration",
         ].join("\n"),
         "Config issues",
       );
     }
     await prompter.outro(
-      `Config invalid. Run \`${formatCliCommand("openclaw doctor")}\` to repair it, then re-run onboarding.`,
+      `Config invalid. Run \`${formatCliCommand("agento doctor")}\` to repair it, then re-run onboarding.`,
     );
     runtime.exit(1);
     return;
   }
 
-  const quickstartHint = `Configure details later via ${formatCliCommand("openclaw configure")}.`;
+  const quickstartHint = `Configure details later via ${formatCliCommand("agento configure")}.`;
   const manualHint = "Configure port, network, Tailscale, and auth options.";
   const explicitFlowRaw = opts.flow?.trim();
   const normalizedExplicitFlow = explicitFlowRaw === "manual" ? "advanced" : explicitFlowRaw;
@@ -464,8 +465,30 @@ export async function runOnboardingWizard(
   // Setup hooks (session memory on /new)
   nextConfig = await setupInternalHooks(nextConfig, runtime, prompter);
 
+  // ============================================================
+  // CONFIGURACIÓN EMPRESARIAL (Integrada en el flujo)
+  // ============================================================
+  await prompter.note(
+    [
+      "",
+      "═════════════════════════════════════════",
+      "  🏪 CONFIGURACIÓN EMPRESARIAL",
+      "═════════════════════════════════════════",
+      "",
+      "Ahora configuraremos las personalidades de tu",
+      "asistente para diferentes funciones de tu negocio.",
+      "",
+    ].join("\n"),
+    "Continuando..."
+  );
+
+  // Ejecutar wizard empresarial
+  nextConfig = await runEnterpriseWizard(nextConfig, prompter);
+
+  // Aplicar metadatos y guardar configuración final
   nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
   await writeConfigFile(nextConfig);
+  logConfigUpdated(runtime);
 
   const { launchedTui } = await finalizeOnboardingWizard({
     flow,

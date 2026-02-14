@@ -12,12 +12,21 @@ export async function setupInternalHooks(
 ): Promise<OpenClawConfig> {
   await prompter.note(
     [
-      "Hooks let you automate actions when agent commands are issued.",
-      "Example: Save session context to memory when you issue /new.",
+      "📎 Los Hooks son 'gatillos' automáticos que ejecutan acciones cuando usás ciertos comandos.",
       "",
-      "Learn more: https://docs.openclaw.ai/hooks",
+      "🤔 ¿Para qué sirven?",
+      "   • Guardar automáticamente el historial de chat antes de limpiarlo",
+      "   • Enviar resúmenes por email cuando terminás una tarea",
+      "   • Registrar todos los comandos que ejecutás",
+      "   • Activar integraciones con otras apps (Calendar, Notion, etc.)",
+      "",
+      "💡 Ejemplo práctico:",
+      "   Cuando escribís '/new' para empezar chat nuevo,",
+      "   un hook puede guardar automáticamente la conversación anterior.",
+      "",
+      "📚 Más info: https://docs.agento.ai/hooks",
     ].join("\n"),
-    "Hooks",
+    "📎 Hooks (Automatizaciones)",
   );
 
   // Discover available hooks using the hook discovery system
@@ -74,9 +83,9 @@ export async function setupInternalHooks(
       `Enabled ${selected.length} hook${selected.length > 1 ? "s" : ""}: ${selected.join(", ")}`,
       "",
       "You can manage hooks later with:",
-      `  ${formatCliCommand("openclaw hooks list")}`,
-      `  ${formatCliCommand("openclaw hooks enable <name>")}`,
-      `  ${formatCliCommand("openclaw hooks disable <name>")}`,
+      `  ${formatCliCommand("agento hooks list")}`,
+      `  ${formatCliCommand("agento hooks enable <name>")}`,
+      `  ${formatCliCommand("agento hooks disable <name>")}`,
     ].join("\n"),
     "Hooks Configured",
   );
