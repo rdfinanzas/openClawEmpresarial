@@ -1886,7 +1886,7 @@ const ADMIN_LOGIN_LIT_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OpenClaw Admin - Login</title>
+  <title>Agento - Login</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -1902,7 +1902,7 @@ const ADMIN_LOGIN_LIT_HTML = `<!DOCTYPE html>
   <script type="module">
     import { LitElement, html, css } from 'https://unpkg.com/lit@3.3.2/index.js?module';
     import { customElement, property, state } from 'https://unpkg.com/lit@3.3.2/decorators.js?module';
-    
+
     @customElement('admin-login-form')
     class AdminLoginForm extends LitElement {
       static styles = css\`
@@ -1911,6 +1911,10 @@ const ADMIN_LOGIN_LIT_HTML = `<!DOCTYPE html>
         .logo { text-align: center; margin-bottom: 30px; }
         .logo h1 { font-size: 28px; color: #333; margin: 0; }
         .logo p { color: #666; margin-top: 8px; }
+        .tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid #e0e0e0; }
+        .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; color: #666; font-weight: 500; transition: all 0.3s; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .tab:hover { color: #667eea; }
+        .tab.active { color: #667eea; border-bottom-color: #667eea; }
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 14px; }
         input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; transition: border-color 0.3s; box-sizing: border-box; }
@@ -1927,22 +1931,70 @@ const ADMIN_LOGIN_LIT_HTML = `<!DOCTYPE html>
         .error.visible { display: block; }
         .info { background: #eef; color: #448; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; display: none; }
         .info.visible { display: block; }
+        .success { background: #efe; color: #484; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; display: none; }
+        .success.visible { display: block; }
         .code-display { background: #f0f0f0; padding: 16px; border-radius: 8px; text-align: center; margin-bottom: 20px; border: 2px dashed #667eea; }
         .code-display .code { font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 8px; font-family: monospace; }
         .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin-right: 8px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .status { text-align: center; margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 8px; font-size: 12px; color: #666; }
+        .hint { font-size: 12px; color: #888; margin-top: 4px; }
+        .token-form, .credentials-form { display: none; }
+        .token-form.active, .credentials-form.active { display: block; }
+        code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
       \`;
-      
+
       @property({ type: String }) apiBaseUrl = '/admin/api';
+      @state() loginMode = 'token';
       @state() step = 1;
       @state() loading = false;
       @state() error = '';
       @state() info = '';
+      @state() success = '';
       @state() tempToken = '';
       @state() debugCode = '';
       @state() username = '';
-      
+
+      // Token login handler
+      async _handleTokenLogin(e) {
+        e.preventDefault();
+        if (this.loading) return;
+        const form = e.target;
+        const formData = new FormData(form);
+        const token = formData.get('token');
+        if (!token || token.trim().length < 10) {
+          this.error = 'Por favor ingresa un token valido';
+          return;
+        }
+        this.loading = true;
+        this.error = '';
+        this.success = '';
+        try {
+          const response = await fetch('/api/health', {
+            method: 'GET',
+            headers: { 'Authorization': \`Bearer \${token.trim()}\` }
+          });
+          if (response.ok) {
+            localStorage.setItem('adminSession', token.trim());
+            this.success = 'Token valido. Redirigiendo...';
+            setTimeout(() => {
+              const params = new URLSearchParams(window.location.search);
+              const redirect = params.get('redirect') || '/chat';
+              // Append token to redirect URL so Control UI can authenticate
+              const redirectUrl = new URL(redirect, window.location.origin);
+              redirectUrl.searchParams.set('token', token.trim());
+              window.location.href = redirectUrl.pathname + redirectUrl.search;
+            }, 500);
+          } else {
+            this.error = 'Token invalido o expirado. Verifica e intenta nuevamente.';
+          }
+        } catch (err) {
+          this.error = 'Error de conexion. Asegurate de que el gateway este corriendo.';
+        } finally {
+          this.loading = false;
+        }
+      }
+
       async _handleStep1(e) {
         e.preventDefault();
         if (this.loading) return;
@@ -1966,7 +2018,7 @@ const ADMIN_LOGIN_LIT_HTML = `<!DOCTYPE html>
         } catch (err) { this.error = 'Network error. Please try again.'; }
         finally { this.loading = false; }
       }
-      
+
       async _handleStep2(e) {
         e.preventDefault();
         if (this.loading) return;
@@ -1981,31 +2033,70 @@ const ADMIN_LOGIN_LIT_HTML = `<!DOCTYPE html>
           });
           const data = await response.json();
           if (!data.ok) { this.error = data.error || 'Verification failed'; return; }
-          if (data.data?.sessionToken) { localStorage.setItem('adminSession', data.data.sessionToken); location.href = '/admin/dashboard'; }
+          if (data.data?.sessionToken) {
+            localStorage.setItem('adminSession', data.data.sessionToken);
+            const params = new URLSearchParams(window.location.search);
+            const redirect = params.get('redirect') || '/admin/dashboard';
+            // For admin routes, no token in URL needed (uses localStorage)
+            // For control UI routes, add token
+            if (redirect.startsWith('/admin')) {
+              location.href = redirect;
+            } else {
+              const redirectUrl = new URL(redirect, window.location.origin);
+              redirectUrl.searchParams.set('token', data.data.sessionToken);
+              location.href = redirectUrl.pathname + redirectUrl.search;
+            }
+          }
         } catch (err) { this.error = 'Network error. Please try again.'; }
         finally { this.loading = false; }
       }
-      
+
       _goBack() { this.step = 1; this.error = ''; this.info = ''; this.tempToken = ''; this.debugCode = ''; }
-      
+      _switchMode(mode) { this.loginMode = mode; this.error = ''; this.info = ''; this.success = ''; this.step = 1; }
+
       render() {
         return html\`
           <div class="container">
-            <div class="logo"><h1>🔧 OpenClaw</h1><p>Admin Panel</p></div>
+            <div class="logo"><h1>🦞 Agento</h1><p>Panel de Control</p></div>
             <div class="error \${this.error ? 'visible' : ''}">\${this.error}</div>
             <div class="info \${this.info ? 'visible' : ''}">\${this.info}</div>
-            <form class="step-1 \${this.step === 2 ? 'hidden' : ''}" @submit="\${this._handleStep1}">
-              <div class="form-group"><label>Username</label><input type="text" name="username" required autocomplete="username" .value="\${this.username}" ?disabled="\${this.loading}"></div>
-              <div class="form-group"><label>Password</label><input type="password" name="password" required autocomplete="current-password" ?disabled="\${this.loading}"></div>
-              <button type="submit" ?disabled="\${this.loading}">\${this.loading ? html\`<span class="loading"></span> Processing...\` : 'Continue'}</button>
-            </form>
-            <form class="step-2 \${this.step === 2 ? 'active' : ''}" @submit="\${this._handleStep2}">
-              \${this.debugCode ? html\`<div class="code-display"><div class="code">\${this.debugCode}</div></div>\` : ''}
-              <div class="form-group"><label>Verification Code</label><input type="text" name="code" placeholder="000000" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code" ?disabled="\${this.loading}"></div>
-              <button type="submit" ?disabled="\${this.loading}">\${this.loading ? html\`<span class="loading"></span> Verifying...\` : 'Verify'}</button>
-              <button type="button" class="secondary-btn" @click="\${this._goBack}" ?disabled="\${this.loading}">Cancel</button>
-            </form>
-            <div class="status">✅ Etapa 15: Auth Password | ✅ Etapa 16: Auth Telegram | ✅ Etapa 17: Middleware | ✅ Etapa 18: UI Login | ✅ Etapa 20: Dashboard</div>
+            <div class="success \${this.success ? 'visible' : ''}">\${this.success}</div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+              <div class="tab \${this.loginMode === 'token' ? 'active' : ''}" @click="\${() => this._switchMode('token')}">🔑 Token</div>
+              <div class="tab \${this.loginMode === 'credentials' ? 'active' : ''}" @click="\${() => this._switchMode('credentials')}">👤 Usuario</div>
+            </div>
+
+            <!-- TOKEN MODE -->
+            <div class="token-form \${this.loginMode === 'token' ? 'active' : ''}">
+              <form @submit="\${this._handleTokenLogin}">
+                <div class="form-group">
+                  <label>Token de Acceso</label>
+                  <input type="text" name="token" placeholder="sk-..." required autocomplete="off" ?disabled="\${this.loading}">
+                  <div class="hint">El token se genero durante la configuracion inicial.<br>Tambien puedes encontrarlo con: <code>agento config get gateway.auth.token</code></div>
+                </div>
+                <button type="submit" ?disabled="\${this.loading}">\${this.loading ? html\`<span class="loading"></span> Verificando...\` : 'Acceder'}</button>
+              </form>
+            </div>
+
+            <!-- CREDENTIALS MODE -->
+            <div class="credentials-form \${this.loginMode === 'credentials' ? 'active' : ''}">
+              <form class="step-1 \${this.step === 2 ? 'hidden' : ''}" @submit="\${this._handleStep1}">
+                <div class="form-group"><label>Usuario</label><input type="text" name="username" required autocomplete="username" .value="\${this.username}" ?disabled="\${this.loading}"></div>
+                <div class="form-group"><label>Contraseña</label><input type="password" name="password" required autocomplete="current-password" ?disabled="\${this.loading}"></div>
+                <button type="submit" ?disabled="\${this.loading}">\${this.loading ? html\`<span class="loading"></span> Procesando...\` : 'Continuar'}</button>
+              </form>
+              <form class="step-2 \${this.step === 2 ? 'active' : ''}" @submit="\${this._handleStep2}">
+                \${this.debugCode ? html\`<div class="code-display"><div class="code">\${this.debugCode}</div></div>\` : ''}
+                <div class="form-group"><label>Código de Verificación</label><input type="text" name="code" placeholder="000000" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code" ?disabled="\${this.loading}"></div>
+                <div class="hint">Revisa tu Telegram para el código</div>
+                <button type="submit" ?disabled="\${this.loading}">\${this.loading ? html\`<span class="loading"></span> Verificando...\` : 'Verificar'}</button>
+                <button type="button" class="secondary-btn" @click="\${this._goBack}" ?disabled="\${this.loading}">Cancelar</button>
+              </form>
+            </div>
+
+            <div class="status">Agento v2026.2 | <a href="/chat">Chat</a> | <a href="/admin/dashboard">Dashboard</a></div>
           </div>
         \`;
       }

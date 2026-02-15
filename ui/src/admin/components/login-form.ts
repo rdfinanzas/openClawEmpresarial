@@ -3,9 +3,10 @@
  *
  * Etapa 18: UI de Login - Frontend
  *
- * Implementa un formulario de login de dos pasos:
- * 1. Username + Password
- * 2. Código de verificación (2FA)
+ * Implementa un formulario de login con tres modos:
+ * 1. Token directo (más simple)
+ * 2. Username + Password
+ * 3. Código de verificación (2FA)
  */
 
 import { LitElement, html, css } from "lit";
@@ -23,6 +24,8 @@ interface LoginResponse {
   };
   error?: string;
 }
+
+type LoginMode = "token" | "credentials";
 
 /**
  * Formulario de Login del Panel Admin
@@ -61,6 +64,34 @@ export class AdminLoginForm extends LitElement {
       color: #666;
       margin-top: 8px;
       margin-bottom: 0;
+    }
+
+    /* Tabs para cambiar entre modos */
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      color: #666;
+      font-weight: 500;
+      transition: all 0.3s;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+    }
+
+    .tab:hover {
+      color: #667eea;
+    }
+
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
     }
 
     .form-group {
@@ -164,6 +195,20 @@ export class AdminLoginForm extends LitElement {
       display: block;
     }
 
+    .success {
+      background: #efe;
+      color: #484;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .success.visible {
+      display: block;
+    }
+
     .code-display {
       background: #f0f0f0;
       padding: 16px;
@@ -222,17 +267,81 @@ export class AdminLoginForm extends LitElement {
     .back-link:hover {
       text-decoration: underline;
     }
+
+    .hint {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .token-form, .credentials-form {
+      display: none;
+    }
+
+    .token-form.active, .credentials-form.active {
+      display: block;
+    }
   `;
 
   @property({ type: String }) apiBaseUrl = "/admin/api";
 
+  @state() private loginMode: LoginMode = "token";
   @state() private step: 1 | 2 = 1;
   @state() private loading = false;
   @state() private error = "";
   @state() private info = "";
+  @state() private success = "";
   @state() private tempToken = "";
   @state() private debugCode = "";
   @state() private username = "";
+
+  // Manejar login con token directo
+  private async _handleTokenLogin(e: Event) {
+    e.preventDefault();
+    if (this.loading) return;
+
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const token = formData.get("token") as string;
+
+    if (!token || token.trim().length < 10) {
+      this.error = "Por favor ingresa un token válido";
+      return;
+    }
+
+    this.loading = true;
+    this.error = "";
+    this.success = "";
+
+    try {
+      // Verificar el token contra el gateway
+      const response = await fetch(`/api/health`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token.trim()}`,
+        },
+      });
+
+      if (response.ok) {
+        // Token válido - guardar y redirigir
+        localStorage.setItem("adminSession", token.trim());
+        this.success = "✅ Token válido. Redirigiendo...";
+
+        setTimeout(() => {
+          // Obtener URL de redirección del query param o usar default
+          const params = new URLSearchParams(window.location.search);
+          const redirect = params.get("redirect") || "/chat";
+          window.location.href = redirect;
+        }, 500);
+      } else {
+        this.error = "Token inválido o expirado. Verifica e intenta nuevamente.";
+      }
+    } catch (err) {
+      this.error = "Error de conexión. Asegúrate de que el gateway esté corriendo.";
+    } finally {
+      this.loading = false;
+    }
+  }
 
   private async _handleStep1(e: Event) {
     e.preventDefault();
@@ -330,94 +439,149 @@ export class AdminLoginForm extends LitElement {
     this.debugCode = "";
   }
 
+  private _switchMode(mode: LoginMode) {
+    this.loginMode = mode;
+    this.error = "";
+    this.info = "";
+    this.success = "";
+    this.step = 1;
+  }
+
   render() {
     return html`
       <div class="container">
         <div class="logo">
-          <h1>🔧 OpenClaw</h1>
-          <p>Admin Panel</p>
+          <h1>🦞 Agento</h1>
+          <p>Panel de Control</p>
         </div>
 
         <div class="error ${this.error ? "visible" : ""}">${this.error}</div>
         <div class="info ${this.info ? "visible" : ""}">${this.info}</div>
+        <div class="success ${this.success ? "visible" : ""}">${this.success}</div>
 
-        <!-- Paso 1: Login -->
-        <form
-          class="step-1 ${this.step === 2 ? "hidden" : ""}"
-          @submit="${this._handleStep1}"
-        >
-          <div class="form-group">
-            <label>Username</label>
-            <input
-              type="text"
-              name="username"
-              required
-              autocomplete="username"
-              .value="${this.username}"
-              ?disabled="${this.loading}"
-            />
-          </div>
-          <div class="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              name="password"
-              required
-              autocomplete="current-password"
-              ?disabled="${this.loading}"
-            />
-          </div>
-          <button type="submit" ?disabled="${this.loading}">
-            ${this.loading
-              ? html`<span class="loading"></span> Processing...`
-              : "Continue"}
-          </button>
-        </form>
-
-        <!-- Paso 2: 2FA -->
-        <form
-          class="step-2 ${this.step === 2 ? "active" : ""}"
-          @submit="${this._handleStep2}"
-        >
-          ${this.debugCode
-            ? html`
-                <div class="code-display">
-                  <div class="code">${this.debugCode}</div>
-                </div>
-              `
-            : ""}
-
-          <div class="form-group">
-            <label>Verification Code</label>
-            <input
-              type="text"
-              name="code"
-              placeholder="000000"
-              maxlength="6"
-              pattern="[0-9]{6}"
-              required
-              autocomplete="one-time-code"
-              ?disabled="${this.loading}"
-            />
-          </div>
-          <button type="submit" ?disabled="${this.loading}">
-            ${this.loading
-              ? html`<span class="loading"></span> Verifying...`
-              : "Verify"}
-          </button>
-          <button
-            type="button"
-            class="secondary-btn"
-            @click="${this._goBack}"
-            ?disabled="${this.loading}"
+        <!-- Tabs para cambiar modo -->
+        <div class="tabs">
+          <div
+            class="tab ${this.loginMode === "token" ? "active" : ""}"
+            @click="${() => this._switchMode("token")}"
           >
-            Cancel
-          </button>
-        </form>
+            🔑 Token
+          </div>
+          <div
+            class="tab ${this.loginMode === "credentials" ? "active" : ""}"
+            @click="${() => this._switchMode("credentials")}"
+          >
+            👤 Usuario
+          </div>
+        </div>
+
+        <!-- MODO TOKEN -->
+        <div class="token-form ${this.loginMode === "token" ? "active" : ""}">
+          <form @submit="${this._handleTokenLogin}">
+            <div class="form-group">
+              <label>Token de Acceso</label>
+              <input
+                type="text"
+                name="token"
+                placeholder="sk-..."
+                required
+                autocomplete="off"
+                ?disabled="${this.loading}"
+              />
+              <div class="hint">
+                El token se generó durante la configuración inicial.
+                <br>También puedes encontrarlo con: <code>agento config get gateway.auth.token</code>
+              </div>
+            </div>
+            <button type="submit" ?disabled="${this.loading}">
+              ${this.loading
+                ? html`<span class="loading"></span> Verificando...`
+                : "Acceder"}
+            </button>
+          </form>
+        </div>
+
+        <!-- MODO CREDENCIALES -->
+        <div class="credentials-form ${this.loginMode === "credentials" ? "active" : ""}">
+
+          <!-- Paso 1: Login -->
+          <form
+            class="step-1 ${this.step === 2 ? "hidden" : ""}"
+            @submit="${this._handleStep1}"
+          >
+            <div class="form-group">
+              <label>Usuario</label>
+              <input
+                type="text"
+                name="username"
+                required
+                autocomplete="username"
+                .value="${this.username}"
+                ?disabled="${this.loading}"
+              />
+            </div>
+            <div class="form-group">
+              <label>Contraseña</label>
+              <input
+                type="password"
+                name="password"
+                required
+                autocomplete="current-password"
+                ?disabled="${this.loading}"
+              />
+            </div>
+            <button type="submit" ?disabled="${this.loading}">
+              ${this.loading
+                ? html`<span class="loading"></span> Procesando...`
+                : "Continuar"}
+            </button>
+          </form>
+
+          <!-- Paso 2: 2FA -->
+          <form
+            class="step-2 ${this.step === 2 ? "active" : ""}"
+            @submit="${this._handleStep2}"
+          >
+            ${this.debugCode
+              ? html`
+                  <div class="code-display">
+                    <div class="code">${this.debugCode}</div>
+                  </div>
+                `
+              : ""}
+
+            <div class="form-group">
+              <label>Código de Verificación</label>
+              <input
+                type="text"
+                name="code"
+                placeholder="000000"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                required
+                autocomplete="one-time-code"
+                ?disabled="${this.loading}"
+              />
+              <div class="hint">Revisa tu Telegram para el código</div>
+            </div>
+            <button type="submit" ?disabled="${this.loading}">
+              ${this.loading
+                ? html`<span class="loading"></span> Verificando...`
+                : "Verificar"}
+            </button>
+            <button
+              type="button"
+              class="secondary-btn"
+              @click="${this._goBack}"
+              ?disabled="${this.loading}"
+            >
+              Cancelar
+            </button>
+          </form>
+        </div>
 
         <div class="status">
-          ✅ Etapa 15: Auth Password | ✅ Etapa 16: Auth Telegram | ⏳ Etapa 17:
-          Middleware
+          Agento v2026.2 | <a href="/chat">Chat</a> | <a href="/admin/dashboard">Dashboard</a>
         </div>
       </div>
     `;

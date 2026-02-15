@@ -130,6 +130,74 @@ async function authorizeCanvasRequest(params: {
   return hasAuthorizedWsClientForIp(clients, clientIp);
 }
 
+/**
+ * Authorize Control UI HTTP requests.
+ * If requireLocalAuth is true, always require authentication.
+ * Otherwise, allow local direct requests without auth.
+ */
+async function authorizeControlUiRequest(params: {
+  req: IncomingMessage;
+  res: ServerResponse;
+  auth: ResolvedGatewayAuth;
+  trustedProxies: string[];
+  controlUiBasePath?: string;
+}): Promise<boolean> {
+  const { req, res, auth, trustedProxies, controlUiBasePath } = params;
+
+  // If requireLocalAuth is false and this is a local direct request, allow
+  const isLocal = isLocalDirectRequest(req, trustedProxies);
+  if (isLocal && !auth.requireLocalAuth) {
+    return true;
+  }
+
+  // Check for Bearer token in Authorization header
+  const token = getBearerToken(req);
+  if (token) {
+    const authResult = await authorizeGatewayConnect({
+      auth: { ...auth, allowTailscale: false },
+      connectAuth: { token, password: token },
+      req,
+      trustedProxies,
+    });
+    if (authResult.ok) {
+      return true;
+    }
+  }
+
+  // Check for token in query parameter (for browser URLs)
+  const url = new URL(req.url ?? "/", "http://localhost");
+  const queryToken = url.searchParams.get("token");
+  if (queryToken) {
+    const authResult = await authorizeGatewayConnect({
+      auth: { ...auth, allowTailscale: false },
+      connectAuth: { token: queryToken, password: queryToken },
+      req,
+      trustedProxies,
+    });
+    if (authResult.ok) {
+      return true;
+    }
+  }
+
+  // Not authenticated - redirect to admin login if available, otherwise send 401
+  const adminLoginPath = controlUiBasePath
+    ? `${controlUiBasePath}/admin/login`
+    : "/admin/login";
+
+  // For HTML requests, redirect to login page
+  const accept = getHeader(req, "accept") ?? "";
+  if (accept.includes("text/html")) {
+    res.statusCode = 302;
+    res.setHeader("Location", `${adminLoginPath}?redirect=${encodeURIComponent(req.url ?? "/")}`);
+    res.end();
+    return false;
+  }
+
+  // For API requests, return 401
+  sendUnauthorized(res);
+  return false;
+}
+
 export type HooksRequestHandler = (req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
 
 export function createHooksRequestHandler(
@@ -402,6 +470,30 @@ export function createGatewayHttpServer(opts: {
         ) {
           return;
         }
+
+        // Determine if this is a Control UI request
+        // Control UI handles paths under basePath (or root if no basePath)
+        // but we exclude /admin which has its own auth
+        const url = new URL(req.url ?? "/", "http://localhost");
+        const isAdminPath = url.pathname === "/admin" || url.pathname.startsWith("/admin/");
+        const isControlUiPath = controlUiBasePath
+          ? url.pathname === controlUiBasePath || url.pathname.startsWith(`${controlUiBasePath}/`)
+          : !isAdminPath; // Without basePath, Control UI handles everything except /admin
+
+        if (isControlUiPath) {
+          // Authorize Control UI access
+          const authorized = await authorizeControlUiRequest({
+            req,
+            res,
+            auth: resolvedAuth,
+            trustedProxies,
+            controlUiBasePath,
+          });
+          if (!authorized) {
+            return; // Response already sent (redirect or 401)
+          }
+        }
+
         if (
           handleControlUiHttpRequest(req, res, {
             basePath: controlUiBasePath,

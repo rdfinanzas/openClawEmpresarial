@@ -2,7 +2,69 @@
 
 Docs: https://docs.openclaw.ai
 
-## 2026.2.10
+## 2026.2.15
+
+### Login y Autenticación - Mejoras de UX
+
+- **Formulario de login unificado**: Nueva interfaz de login con dos modos:
+  - **🔑 Token**: Permite ingresar el token directamente (más simple y rápido)
+  - **👤 Usuario**: Login con username/password + verificación 2FA (Telegram)
+  - El token se guarda en `localStorage` para sesiones futuras
+  - Redirección inteligente después del login (incluye token en URL para Control UI)
+
+- **CLI alias**: Agregado `openclaw` como alias de `agento` en `package.json`
+  - Ambos comandos funcionan después de `pnpm link --global`
+
+- **Soporte Windows mejorado**:
+  - Instrucciones específicas de PowerShell en el system prompt
+  - El agente ahora usa sintaxis correcta para Windows:
+    - `;` en lugar de `&&` para encadenar comandos
+    - `Get-ChildItem` en lugar de `dir /b`
+    - Referencia correcta al CLI como `agento`
+
+- **Branding actualizado**: Referencias de "OpenClaw" a "Agento" en el system prompt
+
+## 2026.2.14
+
+### Wizard Unificado - Mejoras Completas
+
+- **Paso de Skills agregado**: El wizard ahora incluye configuración de skills opcionales.
+  - Detecta skills disponibles en el workspace
+  - Ofrece instalar dependencias faltantes
+  - Configura API keys para skills que las requieren
+
+- **Finalización completa del wizard**: El wizard ahora realiza todas las acciones post-configuración:
+  - **Instalación de daemon**: Pregunta si instalar el servicio del Gateway (systemd/launchd)
+  - **Health check**: Verifica que el gateway esté funcionando correctamente
+  - **Build de Control UI**: Compila los assets del panel web
+  - **Hatch choice**: Pregunta cómo quiere iniciar el bot:
+    - TUI (Terminal interactiva) - recomendado
+    - Web UI (Navegador)
+    - Más tarde (manual)
+
+- **Token de acceso mejorado**:
+  - Muestra el token generado en el paso de gateway
+  - Lo vuelve a mostrar en la finalización
+  - Incluye URLs con token pre-cargado para fácil acceso
+  - Instrucciones claras de cómo ver/regenerar el token
+
+- **Documentación unificada**:
+  - `ENTERPRISE_IMPLEMENTATION_SUMMARY.md` ahora incluye toda la documentación
+  - `PRODUCTION_CHECKLIST.md` eliminado (contenido integrado)
+
+### Security
+
+- **Control UI HTTP Authentication**: Added HTTP-level authentication for the Control UI (`/chat`, `/assets`, etc.). Previously, authentication was only enforced at the WebSocket level, allowing unauthenticated access to the UI pages themselves.
+  - New function `authorizeControlUiRequest` in `src/gateway/server-http.ts` validates authentication before serving Control UI content.
+  - When `gateway.auth.requireLocalAuth` is `true`, authentication is required even from localhost.
+  - Unauthenticated browser requests are redirected to `/admin/login`.
+  - Supports Bearer token in Authorization header or `?token=` query parameter.
+  - Access the web UI with token: `http://localhost:PORT/chat?session=main&token=YOUR_TOKEN`
+
+- **Onboarding Wizard**: Added `requireLocalAuth` prompt during gateway setup.
+  - New question: "Require authentication even from localhost?" with default `true` for better security.
+  - Previously, this option was never asked, leaving `requireLocalAuth` as `false` by default.
+  - Updated types `GatewayWizardSettings` and `QuickstartGatewayDefaults` in `src/wizard/onboarding.types.ts`.
 
 ### Changes
 

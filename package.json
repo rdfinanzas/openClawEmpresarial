@@ -6,7 +6,8 @@
   "license": "MIT",
   "author": "",
   "bin": {
-    "agento": "agento.mjs"
+    "agento": "agento.mjs",
+    "openclaw": "agento.mjs"
   },
   "files": [
     "assets/",

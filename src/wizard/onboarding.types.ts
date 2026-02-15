@@ -12,6 +12,7 @@ export type QuickstartGatewayDefaults = {
   password?: string;
   customBindHost?: string;
   tailscaleResetOnExit: boolean;
+  requireLocalAuth?: boolean;
 };
 
 export type GatewayWizardSettings = {
@@ -22,4 +23,5 @@ export type GatewayWizardSettings = {
   gatewayToken?: string;
   tailscaleMode: "off" | "serve" | "funnel";
   tailscaleResetOnExit: boolean;
+  requireLocalAuth: boolean;
 };

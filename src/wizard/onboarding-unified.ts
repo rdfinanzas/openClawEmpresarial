@@ -8,12 +8,13 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "./prompts.js";
+import type { GatewayWizardSettings } from "./onboarding.types.js";
 import { logWarn } from "../logger.js";
 import { readConfigFileSnapshot, writeConfigFile, DEFAULT_GATEWAY_PORT } from "../config/config.js";
 import { logConfigUpdated } from "../config/logging.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
-import { applyWizardMetadata, DEFAULT_WORKSPACE, ensureWorkspaceAndSessions, printWizardHeader, summarizeExistingConfig, handleReset } from "../commands/onboard-helpers.js";
+import { applyWizardMetadata, DEFAULT_WORKSPACE, ensureWorkspaceAndSessions, printWizardHeader, summarizeExistingConfig, handleReset, probeGatewayReachable, waitForGatewayReachable, resolveControlUiLinks, detectBrowserOpenSupport, openUrl, formatControlUiSshHint } from "../commands/onboard-helpers.js";
 import { setupInternalHooks } from "../commands/onboard-hooks.js";
 import { warnIfModelConfigLooksOff } from "../commands/auth-choice.js";
 import { WizardCancelledError } from "./prompts.js";
@@ -25,6 +26,102 @@ import { loginWeb } from "../channel-web.js";
 import { setDeepseekApiKey, setMoonshotApiKey, setZaiApiKey, setQwenApiKey, setMinimaxApiKey, setTogetherApiKey, setOpenrouterApiKey, setGeminiApiKey, setAnthropicApiKey, setOpenAIApiKey } from "../commands/onboard-auth.credentials.js";
 import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
 import { addChannelAllowFromStoreEntry } from "../pairing/pairing-store.js";
+import { setupSkills } from "../commands/onboard-skills.js";
+import { formatCliCommand } from "../cli/command-format.js";
+import { resolveGatewayService } from "../daemon/service.js";
+import { isSystemdUserServiceAvailable } from "../daemon/systemd.js";
+import { buildGatewayInstallPlan, gatewayInstallErrorHint } from "../commands/daemon-install-helpers.js";
+import { DEFAULT_GATEWAY_DAEMON_RUNTIME, GATEWAY_DAEMON_RUNTIME_OPTIONS } from "../commands/daemon-runtime.js";
+import { healthCommand } from "../commands/health.js";
+import { formatHealthCheckFailure } from "../commands/health-format.js";
+import { ensureControlUiAssetsBuilt } from "../infra/control-ui-assets.js";
+import { restoreTerminalState } from "../terminal/restore.js";
+import { runTui } from "../tui/tui.js";
+import { setupOnboardingShellCompletion } from "./onboarding.completion.js";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { DEFAULT_BOOTSTRAP_FILENAME } from "../agents/workspace.js";
+
+// ============================================================
+// FUNCIÓN PARA INICIAR GATEWAY EN WINDOWS
+// ============================================================
+
+async function startGatewayOnWindows(
+  config: OpenClawConfig,
+  prompter: WizardPrompter,
+): Promise<{ success: boolean; pid?: number; error?: string }> {
+  const port = config.gateway?.port || DEFAULT_GATEWAY_PORT;
+
+  await prompter.note(
+    [
+      "🖥️ WINDOWS DETECTADO",
+      "",
+      "En Windows el gateway se ejecuta como proceso en segundo plano.",
+      "Para iniciarlo automáticamente al arrancar Windows,",
+      "podés agregar un acceso directo a la carpeta de inicio.",
+    ].join("\n"),
+    "Iniciando Gateway"
+  );
+
+  return new Promise((resolve) => {
+    try {
+      // Obtener la ruta del ejecutable
+      const nodePath = process.execPath;
+      const scriptPath = path.join(process.cwd(), "agento.mjs");
+
+      // Iniciar el gateway en segundo plano
+      const child = spawn(nodePath, [scriptPath, "gateway", "--port", String(port)], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+        env: {
+          ...process.env,
+          NODE_ENV: "production",
+        },
+      });
+
+      // Desacoplar el proceso para que siga corriendo
+      child.unref();
+
+      child.on("error", (err) => {
+        resolve({ success: false, error: err.message });
+      });
+
+      // Dar un momento para que inicie
+      setTimeout(() => {
+        if (child.pid) {
+          resolve({ success: true, pid: child.pid });
+        } else {
+          resolve({ success: false, error: "No se pudo obtener el PID del proceso" });
+        }
+      }, 1000);
+    } catch (err) {
+      resolve({
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+}
+
+// ============================================================
+// FUNCIÓN PARA ABRIR NAVEGADOR EN WINDOWS
+// ============================================================
+
+async function openBrowserOnWindows(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn("cmd", ["/c", "start", "", url], {
+      detached: true,
+      stdio: "ignore",
+    });
+
+    child.on("error", () => resolve(false));
+    child.unref();
+
+    setTimeout(() => resolve(true), 500);
+  });
+}
 
 const logger = (msg: string, meta?: Record<string, unknown>) => {
   const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
@@ -308,7 +405,7 @@ async function setupAuthAndModel(
 async function setupGateway(
   config: OpenClawConfig,
   prompter: WizardPrompter,
-): Promise<OpenClawConfig> {
+): Promise<{ config: OpenClawConfig; token?: string }> {
   await prompter.note(
     [
       "CONFIGURACIÓN DEL GATEWAY",
@@ -355,7 +452,7 @@ async function setupGateway(
 
     await prompter.note(
       [
-        "TOKEN DE ACCESO GENERADO",
+        "🔑 TOKEN DE ACCESO GENERADO",
         "",
         "📋 Copia y guarda este token en un lugar seguro:",
         "",
@@ -367,7 +464,7 @@ async function setupGateway(
         "",
         "⚠️  Si lo perdés, ejecutá: agento config reset",
       ].join("\n"),
-      "🔑 Token de Seguridad"
+      "Token de Seguridad"
     );
   } else if (authMode === "password") {
     password = await prompter.text({
@@ -398,19 +495,22 @@ async function setupGateway(
   }
 
   return {
-    ...config,
-    gateway: {
-      ...config.gateway,
-      mode: "local",
-      port: parseInt(port, 10) || DEFAULT_GATEWAY_PORT,
-      bind: networkMode === "loopback" ? "loopback" : networkMode === "lan" ? "lan" : "loopback",
-      auth: {
-        mode: authMode as "token" | "password" | "none",
-        ...(token ? { token } : {}),
-        ...(password ? { password } : {}),
-        requireLocalAuth,
+    config: {
+      ...config,
+      gateway: {
+        ...config.gateway,
+        mode: "local",
+        port: parseInt(port, 10) || DEFAULT_GATEWAY_PORT,
+        bind: networkMode === "loopback" ? "loopback" : networkMode === "lan" ? "lan" : "loopback",
+        auth: {
+          mode: authMode as "token" | "password" | "none",
+          ...(token ? { token } : {}),
+          ...(password ? { password } : {}),
+          requireLocalAuth,
+        },
       },
     },
+    token,
   };
 }
 
@@ -936,7 +1036,7 @@ async function setupEmpresarial(
 }
 
 // ============================================================
-// PASO 7: RESUMEN Y FINALIZACIÓN
+// PASO 7: RESUMEN Y FINALIZACIÓN COMPLETA
 // ============================================================
 
 async function finalizeUnified(
@@ -944,16 +1044,19 @@ async function finalizeUnified(
   workspaceDir: string,
   prompter: WizardPrompter,
   runtime: RuntimeEnv,
-) {
+  flow: 'quickstart' | 'manual',
+  gatewayToken?: string,
+): Promise<{ launchedTui: boolean }> {
   const personality = config.enterprise?.personality;
   const whatsappAccounts = Object.entries(config.channels?.whatsapp?.accounts || {});
-  
+
   // DEBUG: Log de cuentas encontradas
   runtime.log(`[DEBUG] Cuentas WhatsApp encontradas: ${whatsappAccounts.length}`);
   for (const [id, acc] of whatsappAccounts) {
     runtime.log(`[DEBUG]   - ${id}: ${(acc as any).phoneNumber}`);
   }
 
+  // Mostrar resumen de configuración
   await prompter.note(
     [
       "═════════════════════════════════════════",
@@ -965,14 +1068,14 @@ async function finalizeUnified(
       "",
       "🌐 GATEWAY",
       `  Puerto: ${config.gateway?.port || 18789}`,
-      `  Panel: http://localhost:${config.gateway?.port || 18789}/admin`,
+      `  Auth: ${config.gateway?.auth?.mode || "token"}`,
       "",
       "👔 CANAL ADMIN (Telegram)",
-      `  Bot: @${config.channels?.telegram?.botToken ? "Configurado" : "No configurado"}`,
+      `  Bot: ${config.channels?.telegram?.botToken ? "Configurado" : "No configurado"}`,
       `  Nombre: ${personality?.admin.name || "Admin"}`,
       "",
       "📱 CANALES DE VENTAS Y SOPORTE",
-      ...whatsappAccounts.map(([id, acc]: [string, any]) => 
+      ...whatsappAccounts.map(([id, acc]: [string, any]) =>
         `  • ${id.toUpperCase()}: ${acc.phoneNumber} (${acc.purpose || id})`
       ),
       "",
@@ -984,42 +1087,509 @@ async function finalizeUnified(
       `  • VENTAS: ${personality?.sales.name || "No configurado"} (${personality?.sales.tone || "amigable"})`,
       `  • ADMIN: ${personality?.admin.name || "No configurado"}`,
       "",
-      "✨ FUNCIONES ACTIVADAS",
-      "  • Dual Personality",
-      "  • Escalada automática",
-      "  • Alertas de seguridad",
-      "",
     ].join("\n"),
     "Resumen"
-  );
-
-  await prompter.note(
-    [
-      "🚀 PRÓXIMOS PASOS:",
-      "",
-      "1. INICIAR EL SISTEMA:",
-      "   $ agento gateway --port 18789",
-      "",
-      "2. PROBAR LOS CANALES:",
-      "   • Telegram: Escribe al bot (como admin)",
-      "   • WhatsApp Ventas: Escribe como cliente",
-      "",
-      "3. PANEL DE ADMINISTRACIÓN:",
-      `   http://localhost:${config.gateway?.port || 18789}/admin`,
-      "",
-      "4. COMANDOS ÚTILES:",
-      "   $ agento channels status",
-      "   $ agento enterprise status",
-      "   $ agento enterprise apis add",
-      "",
-      "🦞 ¡Agento está listo!",
-    ].join("\n"),
-    "Próximos pasos"
   );
 
   // Guardar configuración
   await writeConfigFile(config);
   logConfigUpdated(runtime);
+
+  // ============================================================
+  // INSTALACIÓN DE SERVICIO (Daemon) - POR SISTEMA OPERATIVO
+  // ============================================================
+
+  const withProgress = async <T>(
+    label: string,
+    options: { doneMessage?: string },
+    work: (progress: { update: (message: string) => void }) => Promise<T>,
+  ): Promise<T> => {
+    const progress = prompter.progress(label);
+    try {
+      return await work(progress);
+    } finally {
+      progress.stop(options.doneMessage);
+    }
+  };
+
+  // Detectar sistema operativo
+  const isWindows = process.platform === "win32";
+  const isLinux = process.platform === "linux";
+  const isMac = process.platform === "darwin";
+
+  // En Linux, verificar systemd
+  const systemdAvailable = isLinux ? await isSystemdUserServiceAvailable() : true;
+
+  if (isLinux && !systemdAvailable) {
+    await prompter.note(
+      "Systemd no está disponible. El gateway se ejecutará en primer plano.",
+      "Systemd",
+    );
+  }
+
+  // Preguntar si quiere iniciar el gateway
+  let startGateway: boolean;
+  if (isLinux && !systemdAvailable) {
+    startGateway = await prompter.confirm({
+      message: "¿Iniciar el gateway ahora?",
+      initialValue: true,
+    });
+  } else if (flow === "quickstart") {
+    startGateway = true; // En quickstart, siempre iniciar
+  } else {
+    const actionLabel = isWindows ? "¿Iniciar el gateway ahora?" : "¿Instalar servicio del Gateway?";
+    startGateway = await prompter.confirm({
+      message: actionLabel + " (recomendado)",
+      initialValue: true,
+    });
+  }
+
+  // ============================================================
+  // WINDOWS: Iniciar gateway en segundo plano
+  // ============================================================
+
+  if (startGateway && isWindows) {
+    const progress = prompter.progress("Iniciando Gateway");
+    progress.update("Iniciando gateway en segundo plano...");
+
+    const result = await startGatewayOnWindows(config, prompter);
+
+    if (result.success) {
+      progress.stop(`✅ Gateway iniciado (PID: ${result.pid})`);
+      await prompter.note(
+        [
+          "El gateway está corriendo en segundo plano.",
+          `Para detenerlo: Buscar el proceso node.exe (PID: ${result.pid}) en el Administrador de Tareas.`,
+          "",
+          "Para iniciar automáticamente al arrancar Windows:",
+          "1. Crear acceso directo a: node agento.mjs gateway",
+          "2. Moverlo a: shell:startup",
+        ].join("\n"),
+        "Windows"
+      );
+    } else {
+      progress.stop(`❌ Error: ${result.error}`);
+      await prompter.note(
+        [
+          "No se pudo iniciar el gateway automáticamente.",
+          "",
+          "Ejecutá manualmente:",
+          "  node agento.mjs gateway",
+        ].join("\n"),
+        "Error"
+      );
+    }
+  }
+
+  // ============================================================
+  // LINUX/MAC: Instalar servicio del sistema
+  // ============================================================
+
+  if (startGateway && !isWindows) {
+    const daemonRuntime =
+      flow === "quickstart"
+        ? DEFAULT_GATEWAY_DAEMON_RUNTIME
+        : await prompter.select({
+            message: "Runtime del servicio",
+            options: GATEWAY_DAEMON_RUNTIME_OPTIONS,
+            initialValue: DEFAULT_GATEWAY_DAEMON_RUNTIME,
+          });
+
+    const service = resolveGatewayService();
+    const loaded = await service.isLoaded({ env: process.env });
+
+    if (loaded) {
+      const action = await prompter.select({
+        message: "El servicio ya está instalado",
+        options: [
+          { value: "restart", label: "Reiniciar" },
+          { value: "reinstall", label: "Reinstalar" },
+          { value: "skip", label: "Omitir" },
+        ],
+      });
+
+      if (action === "restart") {
+        await withProgress(
+          "Gateway service",
+          { doneMessage: "Servicio reiniciado." },
+          async (progress) => {
+            progress.update("Reiniciando servicio...");
+            await service.restart({
+              env: process.env,
+              stdout: process.stdout,
+            });
+          },
+        );
+      } else if (action === "reinstall") {
+        await withProgress(
+          "Gateway service",
+          { doneMessage: "Servicio desinstalado." },
+          async (progress) => {
+            progress.update("Desinstalando servicio...");
+            await service.uninstall({ env: process.env, stdout: process.stdout });
+          },
+        );
+      }
+    }
+
+    if (!loaded || (loaded && !(await service.isLoaded({ env: process.env })))) {
+      const progress = prompter.progress("Gateway service");
+      let installError: string | null = null;
+      try {
+        progress.update("Preparando servicio...");
+        const settings: GatewayWizardSettings = {
+          port: config.gateway?.port || DEFAULT_GATEWAY_PORT,
+          bind: (config.gateway?.bind as GatewayWizardSettings["bind"]) || "loopback",
+          authMode: (config.gateway?.auth?.mode as "token" | "password") || "token",
+          gatewayToken: gatewayToken,
+          tailscaleMode: "off",
+          tailscaleResetOnExit: false,
+          requireLocalAuth: config.gateway?.auth?.requireLocalAuth ?? true,
+        };
+
+        const { programArguments, workingDirectory, environment } = await buildGatewayInstallPlan({
+          env: process.env,
+          port: settings.port,
+          token: settings.gatewayToken,
+          runtime: daemonRuntime,
+          warn: (message, title) => prompter.note(message, title),
+          config: config,
+        });
+
+        progress.update("Instalando servicio...");
+        await service.install({
+          env: process.env,
+          stdout: process.stdout,
+          programArguments,
+          workingDirectory,
+          environment,
+        });
+      } catch (err) {
+        installError = err instanceof Error ? err.message : String(err);
+      } finally {
+        progress.stop(
+          installError ? "Error al instalar servicio." : "Servicio instalado.",
+        );
+      }
+      if (installError) {
+        await prompter.note(`Error al instalar servicio: ${installError}`, "Gateway");
+        await prompter.note(gatewayInstallErrorHint(), "Ayuda");
+      }
+    }
+  }
+
+  // ============================================================
+  // HEALTH CHECK
+  // ============================================================
+
+  const port = config.gateway?.port || DEFAULT_GATEWAY_PORT;
+  const probeLinks = resolveControlUiLinks({
+    bind: config.gateway?.bind ?? "loopback",
+    port: port,
+    customBindHost: config.gateway?.customBindHost,
+    basePath: undefined,
+  });
+
+  // Esperar a que el gateway esté disponible
+  await waitForGatewayReachable({
+    url: probeLinks.wsUrl,
+    token: gatewayToken,
+    deadlineMs: 15_000,
+  });
+
+  try {
+    await healthCommand({ json: false, timeoutMs: 10_000 }, runtime);
+  } catch (err) {
+    runtime.error(formatHealthCheckFailure(err));
+    await prompter.note(
+      [
+        "Docs:",
+        "https://docs.agento.ai/gateway/health",
+        "https://docs.agento.ai/gateway/troubleshooting",
+      ].join("\n"),
+      "Health check help",
+    );
+  }
+
+  // ============================================================
+  // BUILD CONTROL UI
+  // ============================================================
+
+  const controlUiEnabled = config.gateway?.controlUi?.enabled ?? true;
+  if (controlUiEnabled) {
+    const controlUiAssets = await ensureControlUiAssetsBuilt(runtime);
+    if (!controlUiAssets.ok && controlUiAssets.message) {
+      runtime.error(controlUiAssets.message);
+    }
+  }
+
+  // ============================================================
+  // MOSTRAR INFORMACIÓN DE TOKEN Y URLS
+  // ============================================================
+
+  const links = resolveControlUiLinks({
+    bind: (config.gateway?.bind as GatewayWizardSettings["bind"]) || "loopback",
+    port: port,
+    customBindHost: config.gateway?.customBindHost,
+    basePath: config.gateway?.controlUi?.basePath,
+  });
+
+  const authedUrl =
+    config.gateway?.auth?.mode === "token" && gatewayToken
+      ? `${links.httpUrl}#token=${encodeURIComponent(gatewayToken)}`
+      : links.httpUrl;
+
+  const gatewayProbe = await probeGatewayReachable({
+    url: links.wsUrl,
+    token: config.gateway?.auth?.mode === "token" ? gatewayToken : undefined,
+    password: config.gateway?.auth?.mode === "password" ? config.gateway?.auth?.password : "",
+  });
+
+  const gatewayStatusLine = gatewayProbe.ok
+    ? "Gateway: disponible"
+    : `Gateway: no detectado${gatewayProbe.detail ? ` (${gatewayProbe.detail})` : ""}`;
+
+  // Mostrar token si existe
+  if (config.gateway?.auth?.mode === "token" && gatewayToken) {
+    await prompter.note(
+      [
+        "🔑 TOKEN DE ACCESO AL GATEWAY",
+        "",
+        "📋 Guarda este token en un lugar seguro:",
+        "",
+        gatewayToken,
+        "",
+        "💡 Lo necesitarás para:",
+        "   • Acceder al panel web",
+        "   • Conectar canales remotos",
+        "",
+        `Ver token: ${formatCliCommand("agento config get gateway.auth.token")}`,
+        `Generar nuevo: ${formatCliCommand("agento doctor --generate-gateway-token")}`,
+      ].join("\n"),
+      "Token de Seguridad"
+    );
+  }
+
+  await prompter.note(
+    [
+      `🌐 Web UI: ${links.httpUrl}`,
+      config.gateway?.auth?.mode === "token" && gatewayToken
+        ? `🌐 Web UI (con token): ${authedUrl}`
+        : undefined,
+      `🔌 Gateway WS: ${links.wsUrl}`,
+      `📊 Estado: ${gatewayStatusLine}`,
+      "📚 Docs: https://docs.agento.ai/web/control-ui",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    "Control UI"
+  );
+
+  // ============================================================
+  // HATCH CHOICE - ¿Cómo quiere iniciar?
+  // ============================================================
+
+  const bootstrapPath = path.join(
+    resolveUserPath(workspaceDir),
+    DEFAULT_BOOTSTRAP_FILENAME,
+  );
+  const hasBootstrap = await fs
+    .access(bootstrapPath)
+    .then(() => true)
+    .catch(() => false);
+
+  let hatchChoice: "tui" | "web" | "later" | null = null;
+  let launchedTui = false;
+  let controlUiOpened = false;
+  let controlUiOpenHint: string | undefined;
+
+  // Verificar si el gateway está disponible (puede tardar unos segundos en Windows)
+  const progress = prompter.progress("Verificando Gateway");
+  progress.update("Esperando a que el gateway esté listo...");
+
+  let gatewayReady = false;
+  for (let i = 0; i < 30; i++) {
+    const probe = await probeGatewayReachable({
+      url: links.wsUrl,
+      token: config.gateway?.auth?.mode === "token" ? gatewayToken : undefined,
+      password: config.gateway?.auth?.mode === "password" ? config.gateway?.auth?.password : "",
+    });
+    if (probe.ok) {
+      gatewayReady = true;
+      break;
+    }
+    // Esperar 1 segundo antes de reintentar
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    progress.update(`Esperando al gateway... (${i + 1}/30)`);
+  }
+
+  if (gatewayReady) {
+    progress.stop("✅ Gateway listo");
+  } else {
+    progress.stop("⚠️ Gateway no respondió (puede estar iniciando)");
+  }
+
+  // Actualizar el probe después de esperar
+  const finalGatewayProbe = await probeGatewayReachable({
+    url: links.wsUrl,
+    token: config.gateway?.auth?.mode === "token" ? gatewayToken : undefined,
+    password: config.gateway?.auth?.mode === "password" ? config.gateway?.auth?.password : "",
+  });
+
+  if (finalGatewayProbe.ok || gatewayReady) {
+    if (hasBootstrap) {
+      await prompter.note(
+        [
+          "🥚 Este es el momento de dar vida a tu agente.",
+          "Tómate tu tiempo.",
+          "Cuanto más le cuentes, mejor será la experiencia.",
+          'Se enviará: "¡Despierta, amigo!"',
+        ].join("\n"),
+        "Hatch en TUI (mejor opción)"
+      );
+    }
+
+    hatchChoice = await prompter.select({
+      message: "¿Cómo quieres iniciar tu bot?",
+      options: [
+        { value: "web", label: "🌐 Abrir Web UI (recomendado)", hint: "Panel en navegador" },
+        { value: "tui", label: "🥚 Hatch en TUI", hint: "Terminal interactiva" },
+        { value: "later", label: "⏰ Más tarde", hint: "Iniciar manualmente después" },
+      ],
+      initialValue: "web",  // Web es más fácil para usuarios no técnicos
+    });
+
+    if (hatchChoice === "tui") {
+      restoreTerminalState("pre-onboarding tui");
+      await runTui({
+        url: links.wsUrl,
+        token: config.gateway?.auth?.mode === "token" ? gatewayToken : undefined,
+        password: config.gateway?.auth?.mode === "password" ? config.gateway?.auth?.password : "",
+        deliver: false,
+        message: hasBootstrap ? "¡Despierta, amigo!" : undefined,
+      });
+      launchedTui = true;
+    } else if (hatchChoice === "web") {
+      // En Windows, usar función específica
+      if (isWindows) {
+        controlUiOpened = await openBrowserOnWindows(authedUrl);
+      } else {
+        // En Linux/Mac, usar función existente
+        const browserSupport = await detectBrowserOpenSupport();
+        if (browserSupport.ok) {
+          controlUiOpened = await openUrl(authedUrl);
+        }
+      }
+
+      if (!controlUiOpened) {
+        controlUiOpenHint = formatControlUiSshHint({
+          port: port,
+          basePath: config.gateway?.controlUi?.basePath,
+          token: config.gateway?.auth?.mode === "token" ? gatewayToken : undefined,
+        });
+      }
+
+      await prompter.note(
+        [
+          controlUiOpened
+            ? "✅ Navegador abierto con tu panel de control."
+            : "📋 Abrí esta URL en tu navegador:",
+          "",
+          `🔗 ${authedUrl}`,
+          "",
+          controlUiOpened
+            ? "Mantén esa pestaña abierta para controlar Agento."
+            : "Copia y pega la URL en tu navegador.",
+          controlUiOpenHint,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        "Dashboard"
+      );
+    } else {
+      await prompter.note(
+        `Cuando estés listo: ${formatCliCommand("agento dashboard --no-open")}`,
+        "Más tarde"
+      );
+    }
+  }
+
+  // ============================================================
+  // CONSEJOS FINALES
+  // ============================================================
+
+  await prompter.note(
+    [
+      "💾 Respalda tu workspace regularmente.",
+      "Docs: https://docs.agento.ai/concepts/agent-workspace",
+    ].join("\n"),
+    "Respaldo"
+  );
+
+  await prompter.note(
+    "⚠️  Ejecutar agentes en tu computadora tiene riesgos — protege tu setup: https://docs.agento.ai/security",
+    "Seguridad"
+  );
+
+  await setupOnboardingShellCompletion({ flow: flow === "quickstart" ? "quickstart" : "advanced", prompter });
+
+  const webSearchKey = (config.tools?.web?.search?.apiKey ?? "").trim();
+  const webSearchEnv = (process.env.BRAVE_API_KEY ?? "").trim();
+  const hasWebSearchKey = Boolean(webSearchKey || webSearchEnv);
+
+  await prompter.note(
+    hasWebSearchKey
+      ? [
+          "🔍 Web search habilitado. Tu agente puede buscar online.",
+          "",
+          webSearchKey
+            ? "API key: guardada en config (tools.web.search.apiKey)."
+            : "API key: vía BRAVE_API_KEY env var.",
+          "Docs: https://docs.agento.ai/tools/web",
+        ].join("\n")
+      : [
+          "🔍 Para que tu agente pueda buscar en la web, necesitas una API key.",
+          "",
+          "Agento usa Brave Search. Sin API key, web_search no funcionará.",
+          "",
+          "Configurar:",
+          `- ${formatCliCommand("agento configure --section web")}`,
+          "",
+          "O setea BRAVE_API_KEY en el entorno del Gateway.",
+          "Docs: https://docs.agento.ai/tools/web",
+        ].join("\n"),
+    "Web search (opcional)"
+  );
+
+  // Mensaje final
+  await prompter.note(
+    [
+      "═════════════════════════════════════════",
+      "  🦞 ¡AGENTO ESTÁ LISTO!",
+      "═════════════════════════════════════════",
+      "",
+      "📝 COMANDOS ÚTILES:",
+      `   ${formatCliCommand("agento gateway")}         # Iniciar gateway`,
+      `   ${formatCliCommand("agento channels status")} # Ver estado de canales`,
+      `   ${formatCliCommand("agento enterprise status")} # Ver config empresarial`,
+      `   ${formatCliCommand("agento doctor")}          # Diagnosticar problemas`,
+      "",
+      "📚 Docs: https://docs.agento.ai",
+      "💬 Soporte: https://discord.gg/agento",
+      "",
+    ].join("\n"),
+    "¡Listo!"
+  );
+
+  await prompter.outro(
+    controlUiOpened
+      ? "Onboarding completo. Dashboard abierto en tu navegador."
+      : launchedTui
+        ? "Onboarding completo. TUI iniciado."
+        : "Onboarding completo. Usa el dashboard para controlar Agento."
+  );
+
+  return { launchedTui };
 }
 
 // ============================================================
@@ -1055,8 +1625,10 @@ export async function runUnifiedOnboarding(
   // 2. Auth y Modelo LLM
   config = await setupAuthAndModel(config, runtime, prompter);
 
-  // 3. Gateway
-  config = await setupGateway(config, prompter);
+  // 3. Gateway (y obtener token)
+  const gatewayResult = await setupGateway(config, prompter);
+  config = gatewayResult.config;
+  const gatewayToken = gatewayResult.token;
 
   // 4. Canales (solo si no se salta)
   if (!opts.skipChannels) {
@@ -1070,14 +1642,26 @@ export async function runUnifiedOnboarding(
   const { config: configWithWorkspace, workspaceDir } = await setupWorkspace(config, runtime, prompter);
   config = configWithWorkspace;
 
-  // 6. Configuración Empresarial
+  // 6. Skills (si no se salta)
+  if (!opts.skipSkills) {
+    await prompter.note(
+      [
+        "SKILLS - HABILIDADES ADICIONALES",
+        "",
+        "Las skills extienden las capacidades de Agento.",
+      ].join("\n"),
+      "Paso 6 de 7"
+    );
+
+    config = await setupSkills(config, workspaceDir, runtime, prompter);
+  }
+
+  // 7. Configuración Empresarial
   config = await setupEmpresarial(config, prompter);
 
   // Hooks internos
   config = await setupInternalHooks(config, runtime, prompter);
 
-  // 7. Finalizar
-  await finalizeUnified(config, workspaceDir, prompter, runtime);
-
-  await prompter.outro("🦞 ¡Configuración completada! Exfoliate!");
+  // 8. Finalizar (incluye daemon, health check, hatch choice)
+  await finalizeUnified(config, workspaceDir, prompter, runtime, mode, gatewayToken);
 }

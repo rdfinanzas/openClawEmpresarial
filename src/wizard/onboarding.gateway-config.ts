@@ -202,6 +202,31 @@ export async function configureGatewayForOnboarding(
     }
   }
 
+  // Ask about requireLocalAuth - important for security
+  let requireLocalAuth: boolean;
+  if (flow === "quickstart") {
+    // In quickstart, require auth for localhost by default for better security
+    requireLocalAuth = quickstartGateway.requireLocalAuth ?? true;
+  } else {
+    requireLocalAuth = await prompter.confirm({
+      message: "Require authentication even from localhost?",
+      initialValue: true,
+    });
+    if (requireLocalAuth) {
+      await prompter.note(
+        [
+          "With this option enabled, all access to the gateway (including the web UI at /chat)",
+          "will require authentication, even from localhost.",
+          "",
+          "Access the web UI with: http://localhost:PORT/chat?token=YOUR_TOKEN",
+          "",
+          "This is recommended for production and shared environments.",
+        ].join("\n"),
+        "Localhost Authentication",
+      );
+    }
+  }
+
   if (authMode === "password") {
     const password =
       flow === "quickstart" && quickstartGateway.password
@@ -218,6 +243,7 @@ export async function configureGatewayForOnboarding(
           ...nextConfig.gateway?.auth,
           mode: "password",
           password: String(password).trim(),
+          requireLocalAuth,
         },
       },
     };
@@ -230,6 +256,7 @@ export async function configureGatewayForOnboarding(
           ...nextConfig.gateway?.auth,
           mode: "token",
           token: gatewayToken,
+          requireLocalAuth,
         },
       },
     };
@@ -281,6 +308,7 @@ export async function configureGatewayForOnboarding(
       gatewayToken,
       tailscaleMode: tailscaleMode as GatewayTailscaleMode,
       tailscaleResetOnExit,
+      requireLocalAuth,
     },
   };
 }
