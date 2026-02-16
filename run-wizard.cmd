@@ -9,33 +9,25 @@ echo.
 echo Ejecutando wizard de configuracion...
 echo.
 node agento.mjs onboard
+echo.
 if %ERRORLEVEL% NEQ 0 (
-    echo.
     echo [ERROR] El wizard fallo.
     pause
     exit /b 1
 )
 if not exist "%USERPROFILE%\.openclaw\config.json" (
-    echo.
     echo [INFO] No se completo la configuracion.
     pause
     exit /b 0
 )
-echo.
 echo ========================================
-echo  Iniciando gateway...
+echo  Configuracion completada!
 echo ========================================
 echo.
-start "" node agento.mjs gateway
-echo Esperando que inicie el gateway...
-ping -n 4 127.0.0.1 >nul
+echo Para iniciar el gateway ejecuta:
+echo   agento gateway
 echo.
-echo Abriendo navegador...
-start http://localhost:18789
-echo.
-echo ========================================
-echo  Listo! El gateway esta corriendo.
-echo  Podes cerrar esta ventana.
-echo ========================================
+echo O ejecuta directamente:
+echo   node agento.mjs gateway
 echo.
 pause
