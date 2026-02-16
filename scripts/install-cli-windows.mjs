@@ -8,7 +8,6 @@
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { createInterface } from "readline";
 import { spawn } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -98,53 +97,35 @@ if (!cliInstalled) {
   console.log('  node "' + resolve(projectRoot, "scripts", "install-cli-windows.mjs") + '"\n');
 }
 
-// Detectar primera instalación y ofrecer wizard
+// Detectar primera instalación y ejecutar wizard automáticamente
 console.log("\n[install-cli] Verificando configuración existente...");
 
 if (!existsSync(configPath)) {
   console.log("\n  ╔════════════════════════════════════════════════════════╗");
   console.log("  ║  🦞 Bienvenido a Agento!                               ║");
   console.log("  ║                                                        ║");
-  console.log("  ║  No se encontró configuración existente.               ║");
-  console.log("  ║  ¿Querés ejecutar el asistente de configuración?       ║");
+  console.log("  ║  Iniciando asistente de configuración...               ║");
   console.log("  ╚════════════════════════════════════════════════════════╝\n");
 
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout
+  // Ejecutar el wizard directamente
+  const wizard = spawn("node", [agentoPath, "wizard"], {
+    stdio: "inherit",
+    cwd: projectRoot,
+    shell: true
   });
 
-  rl.question("  Ejecutar wizard ahora? (s/n): ", (answer) => {
-    rl.close();
-
-    if (answer.toLowerCase() === "s" || answer.toLowerCase() === "y" || answer === "") {
-      console.log("\n[install-cli] Iniciando wizard de configuración...\n");
-
-      // Ejecutar el wizard
-      const wizard = spawn("node", [agentoPath, "wizard"], {
-        stdio: "inherit",
-        cwd: projectRoot,
-        shell: true
-      });
-
-      wizard.on("close", (code) => {
-        if (code === 0) {
-          console.log("\n✓ Configuración completada!");
-          console.log("  Ejecuta 'agento gateway start' para iniciar el gateway.\n");
-        }
-        process.exit(code || 0);
-      });
-
-      wizard.on("error", (err) => {
-        console.error("\nError al ejecutar wizard:", err.message);
-        console.log("  Puedes ejecutarlo manualmente con: agento wizard\n");
-        process.exit(1);
-      });
-    } else {
-      console.log("\n  Podés ejecutar el wizard más tarde con:");
-      console.log("    agento wizard\n");
-      process.exit(0);
+  wizard.on("close", (code) => {
+    if (code === 0) {
+      console.log("\n✓ Configuración completada!");
+      console.log("  Ejecuta 'agento gateway start' para iniciar el gateway.\n");
     }
+    process.exit(code || 0);
+  });
+
+  wizard.on("error", (err) => {
+    console.error("\nError al ejecutar wizard:", err.message);
+    console.log("  Puedes ejecutarlo manualmente con: agento wizard\n");
+    process.exit(1);
   });
 } else {
   console.log("✓ Configuración existente encontrada en " + openclawDir);
