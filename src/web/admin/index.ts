@@ -1954,6 +1954,16 @@ const ADMIN_LOGIN_LIT_HTML = `<!DOCTYPE html>
       @state() tempToken = '';
       @state() debugCode = '';
       @state() username = '';
+      @state() prefilledToken = '';
+
+      // Leer token de URL al cargar
+      firstUpdated() {
+        const params = new URLSearchParams(window.location.search);
+        const tokenFromUrl = params.get('token');
+        if (tokenFromUrl && tokenFromUrl.trim().length >= 10) {
+          this.prefilledToken = tokenFromUrl.trim();
+        }
+      }
 
       // Token login handler
       async _handleTokenLogin(e) {
@@ -2073,7 +2083,7 @@ const ADMIN_LOGIN_LIT_HTML = `<!DOCTYPE html>
               <form @submit="\${this._handleTokenLogin}">
                 <div class="form-group">
                   <label>Token de Acceso</label>
-                  <input type="text" name="token" placeholder="sk-..." required autocomplete="off" ?disabled="\${this.loading}">
+                  <input type="text" name="token" placeholder="sk-..." required autocomplete="off" ?disabled="\${this.loading}" .value="\${this.prefilledToken}">
                   <div class="hint">El token se genero durante la configuracion inicial.<br>Tambien puedes encontrarlo con: <code>agento config get gateway.auth.token</code></div>
                 </div>
                 <button type="submit" ?disabled="\${this.loading}">\${this.loading ? html\`<span class="loading"></span> Verificando...\` : 'Acceder'}</button>

@@ -250,10 +250,12 @@ export async function finalizeOnboardingWizard(
     customBindHost: settings.customBindHost,
     basePath: controlUiBasePath,
   });
+  // Abrir siempre en /admin/login con el token como parámetro
+  const loginPath = controlUiBasePath ? `${controlUiBasePath}/admin/login` : "/admin/login";
   const authedUrl =
     settings.authMode === "token" && settings.gatewayToken
-      ? `${links.httpUrl}#token=${encodeURIComponent(settings.gatewayToken)}`
-      : links.httpUrl;
+      ? `${links.httpUrl.replace(/\/$/, "")}${loginPath}?token=${encodeURIComponent(settings.gatewayToken)}`
+      : `${links.httpUrl.replace(/\/$/, "")}${loginPath}`;
   const gatewayProbe = await probeGatewayReachable({
     url: links.wsUrl,
     token: settings.authMode === "token" ? settings.gatewayToken : undefined,
