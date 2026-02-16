@@ -33,7 +33,7 @@ function tryCreateCmd(dir, name) {
   }
 }
 
-// Instalar comandos CLI
+// Instalar comandos CLI silenciosamente
 let cliInstalled = false;
 
 const windowsDir = "C:\\Windows";
@@ -69,32 +69,15 @@ if (existsSync(configPath)) {
   process.exit(0);
 }
 
-// Abrir wizard en nueva ventana de terminal
-const cmdArgs = [
-  "/c",
-  "start",
-  "cmd",
-  "/k",
-  "node",
-  agentoPath,
-  "onboard"
-];
-
-spawn("cmd", cmdArgs, {
-  stdio: "ignore",
-  detached: true
+// Ejecutar wizard en la misma ventana con input/output directos
+const wizard = spawn("node", [agentoPath, "onboard"], {
+  cwd: projectRoot,
+  stdio: ["inherit", "inherit", "inherit"],
+  env: { ...process.env, FORCE_COLOR: "1", TERM: "xterm-256color" }
 });
 
-// Esperar a que se cree el config y luego iniciar gateway
-let attempts = 0;
-const maxAttempts = 300; // 5 minutos máximo
-
-const checkAndStart = setInterval(() => {
-  attempts++;
-
-  if (existsSync(configPath)) {
-    clearInterval(checkAndStart);
-
+wizard.on("close", (code) => {
+  if (code === 0 && existsSync(configPath)) {
     try {
       const configData = readFileSync(configPath, "utf-8");
       const config = JSON.parse(configData);
@@ -105,11 +88,10 @@ const checkAndStart = setInterval(() => {
       spawn("node", [agentoPath, "gateway"], {
         stdio: "ignore",
         cwd: projectRoot,
-        detached: true,
-        shell: true
+        detached: true
       });
 
-      // Abrir navegador después de 3 segundos
+      // Abrir navegador
       setTimeout(() => {
         const loginUrl = token
           ? "http://localhost:" + port + "/chat?token=" + token
@@ -118,10 +100,10 @@ const checkAndStart = setInterval(() => {
       }, 3000);
     } catch {}
   }
+  process.exit(code || 0);
+});
 
-  if (attempts >= maxAttempts) {
-    clearInterval(checkAndStart);
-  }
-}, 1000);
-
-process.exit(0);
+wizard.on("error", (err) => {
+  console.error("Error:", err.message);
+  process.exit(1);
+});
