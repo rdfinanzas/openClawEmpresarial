@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 /**
  * Postinstall script para Windows
- * Instala CLI y ejecuta el wizard en nueva ventana
+ * Solo instala los comandos CLI (agento y openclaw)
  */
 
-import { writeFileSync, existsSync, mkdirSync, readFileSync } from "fs";
+import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { spawn } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -18,9 +17,6 @@ if (process.platform !== "win32") {
 }
 
 const agentoPath = resolve(projectRoot, "agento.mjs");
-const openclawDir = resolve(process.env.USERPROFILE || ".", ".openclaw");
-const configPath = resolve(openclawDir, "config.json");
-
 const cmdContent = '@node "' + agentoPath + '" %*\n';
 
 function tryCreateCmd(dir, name) {
@@ -64,17 +60,5 @@ if (!cliInstalled) {
   } catch {}
 }
 
-// Si ya existe config, salir silenciosamente
-if (existsSync(configPath)) {
-  process.exit(0);
-}
-
-// Abrir wizard en nueva ventana usando el script run-wizard.cmd
-const runWizardScript = resolve(projectRoot, "run-wizard.cmd");
-spawn("cmd", ["/c", "start", "cmd", "/k", runWizardScript], {
-  stdio: "ignore",
-  detached: true
-});
-
-// Salir silenciosamente
+// Listo, salir silenciosamente
 process.exit(0);

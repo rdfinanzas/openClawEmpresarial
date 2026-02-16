@@ -10,7 +10,20 @@
       "Bash(pnpm add:*)",
       "Bash(npm view:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(taskkill:*)",
+      "Bash(tasklist:*)",
+      "Bash(curl:*)",
+      "Bash(ping:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git push)",
+      "Bash(bash:*)",
+      "Bash(npx esbuild:*)",
+      "Bash(pnpm run build:*)",
+      "Bash(pkill:*)",
+      "Bash(git rm:*)",
+      "Bash(agento --version)",
+      "Bash(cmd.exe:*)"
     ]
   }
 }

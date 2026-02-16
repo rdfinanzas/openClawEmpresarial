@@ -393,10 +393,11 @@ export const OpenClawSchema = z
           .optional(),
         auth: z
           .object({
-            mode: z.union([z.literal("token"), z.literal("password")]).optional(),
+            mode: z.union([z.literal("token"), z.literal("password"), z.literal("none")]).optional(),
             token: z.string().optional(),
             password: z.string().optional(),
             allowTailscale: z.boolean().optional(),
+            requireLocalAuth: z.boolean().optional(),
           })
           .strict()
           .optional(),
