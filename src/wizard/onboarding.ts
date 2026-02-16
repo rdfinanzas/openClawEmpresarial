@@ -503,4 +503,31 @@ export async function runOnboardingWizard(
   if (launchedTui) {
     return;
   }
+
+  // ============================================================
+  // CONFIGURACIÓN EMPRESARIAL (opcional)
+  // ============================================================
+
+  const wantsEnterprise = await prompter.confirm({
+    message: "¿Querés configurar personalidad empresarial? (ventas, admin, etc.)",
+    initialValue: false,
+  });
+
+  if (wantsEnterprise) {
+    nextConfig = await runEnterpriseWizard(nextConfig, prompter);
+    await writeConfigFile(nextConfig);
+    await prompter.note(
+      [
+        "✅ Configuración empresarial completada.",
+        "",
+        "Personalidades configuradas:",
+        "- VENTAS: Para WhatsApp/Discord público",
+        "- ADMIN: Para Telegram privado",
+        "",
+        "Podés editar la configuración en:",
+        "~/.openclaw/config.json",
+      ].join("\n"),
+      "Empresa"
+    );
+  }
 }
