@@ -69,22 +69,49 @@ if (existsSync(configPath)) {
   process.exit(0);
 }
 
-// Crear script temporal que ejecuta wizard y luego inicia gateway
+// Crear script que ejecuta wizard y luego inicia gateway
 const tempScript = resolve(projectRoot, "run-wizard.cmd");
-const scriptContent = `
-@echo off
+const scriptContent = `@echo off
+title Agento Setup
 cd /d "${projectRoot}"
+echo.
+echo ========================================
+echo  Agento - Configuracion inicial
+echo ========================================
+echo.
+echo Ejecutando wizard de configuracion...
+echo.
 node agento.mjs onboard
-if exist "${configPath}" (
+if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo Iniciando gateway...
-    start /b node agento.mjs gateway
-    timeout /t 3 /nobreak >nul
-    for /f "tokens=*" %%i in ('type "${configPath}" ^| findstr /c:"port" ^| findstr /r "[0-9]"') do set PORT=%%i
-    for /f "tokens=*" %%i in ('type "${configPath}" ^| findstr /c:"token"') do set TOKEN=%%i
-    start http://localhost:18789/chat?token=
+    echo [ERROR] El wizard fallo. Presiona una tecla para cerrar.
+    pause >nul
+    exit /b 1
 )
-exit
+if not exist "${configPath}" (
+    echo.
+    echo [INFO] No se completo la configuracion.
+    pause
+    exit /b 0
+)
+echo.
+echo ========================================
+echo  Iniciando gateway...
+echo ========================================
+echo.
+start "" node agento.mjs gateway
+echo Esperando que inicie el gateway...
+ping -n 4 127.0.0.1 >nul
+echo.
+echo Abriendo navegador...
+start http://localhost:18789
+echo.
+echo ========================================
+echo  Listo! El gateway esta corriendo.
+echo  Podes cerrar esta ventana.
+echo ========================================
+echo.
+pause
 `;
 
 try {
@@ -97,5 +124,5 @@ spawn("cmd", ["/c", "start", "cmd", "/k", tempScript], {
   detached: true
 });
 
-// Cerrar esta ventana inmediatamente
+// Salir silenciosamente (no cerrar ventana de pnpm)
 process.exit(0);
