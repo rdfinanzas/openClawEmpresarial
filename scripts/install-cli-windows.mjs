@@ -2,14 +2,12 @@
 /**
  * Postinstall script para Windows
  * Crea comandos globales 'agento' y 'openclaw' automáticamente
- * Detecta primera instalación y ejecuta el wizard
- * Al final abre el navegador en la página de login
+ * Muestra instrucciones si es primera instalación
  */
 
-import { writeFileSync, existsSync, mkdirSync, readFileSync } from "fs";
+import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { spawn } from "child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -24,7 +22,7 @@ const agentoPath = resolve(projectRoot, "agento.mjs");
 const openclawDir = resolve(process.env.USERPROFILE || ".", ".openclaw");
 const configPath = resolve(openclawDir, "config.json");
 
-// Contenido del archivo .cmd
+// Contenido del archivo .cmd (usado por tryCreateCmd)
 const cmdContent = '@node "' + agentoPath + '" %*\n';
 
 function tryCreateCmd(dir, name) {
@@ -98,74 +96,23 @@ if (!cliInstalled) {
   console.log('  node "' + resolve(projectRoot, "scripts", "install-cli-windows.mjs") + '"\n');
 }
 
-// Detectar primera instalación y ejecutar wizard automáticamente
+// Detectar primera instalación y mostrar instrucciones
 console.log("\n[install-cli] Verificando configuración existente...");
 
 if (!existsSync(configPath)) {
   console.log("\n  ╔════════════════════════════════════════════════════════╗");
   console.log("  ║  🦞 Bienvenido a Agento!                               ║");
   console.log("  ║                                                        ║");
-  console.log("  ║  Iniciando asistente de configuración...               ║");
+  console.log("  ║  Para completar la instalación, ejecuta:               ║");
+  console.log("  ║                                                        ║");
+  console.log("  ║    agento-onboard                                      ║");
+  console.log("  ║                                                        ║");
+  console.log("  ║  O si ya tenés configuración previa:                   ║");
+  console.log("  ║    agento gateway                                      ║");
   console.log("  ╚════════════════════════════════════════════════════════╝\n");
-
-  // Ejecutar el wizard directamente
-  const wizard = spawn("node", [agentoPath, "wizard"], {
-    stdio: "inherit",
-    cwd: projectRoot,
-    shell: true
-  });
-
-  wizard.on("close", (code) => {
-    if (code === 0) {
-      console.log("\n✓ Configuración completada!");
-
-      // Leer configuración para obtener puerto y token
-      try {
-        const configData = readFileSync(configPath, "utf-8");
-        const config = JSON.parse(configData);
-        const port = config.gateway?.port || 18789;
-        const token = config.gateway?.auth?.token || "";
-
-        console.log("  Iniciando gateway...\n");
-
-        // Iniciar el gateway en background
-        const gateway = spawn("node", [agentoPath, "gateway"], {
-          stdio: "ignore",
-          cwd: projectRoot,
-          detached: true,
-          shell: true
-        });
-        gateway.unref();
-
-        // Esperar un momento y abrir el navegador
-        setTimeout(() => {
-          const loginUrl = token
-            ? "http://localhost:" + port + "/admin/login?token=" + token
-            : "http://localhost:" + port + "/admin/login";
-
-          console.log("  Abriendo navegador: " + loginUrl + "\n");
-
-          // Abrir navegador
-          spawn("cmd", ["/c", "start", "", loginUrl], {
-            stdio: "ignore",
-            detached: true
-          });
-        }, 3000);
-
-      } catch (err) {
-        console.log("  Ejecuta 'agento gateway start' para iniciar el gateway.\n");
-      }
-    }
-    process.exit(code || 0);
-  });
-
-  wizard.on("error", (err) => {
-    console.error("\nError al ejecutar wizard:", err.message);
-    console.log("  Puedes ejecutarlo manualmente con: agento wizard\n");
-    process.exit(1);
-  });
 } else {
   console.log("✓ Configuración existente encontrada en " + openclawDir);
-  console.log("  Para reconfigurar, ejecuta: agento wizard\n");
-  process.exit(0);
+  console.log("  Para iniciar: agento gateway\n");
 }
+
+process.exit(0);
