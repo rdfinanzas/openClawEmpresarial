@@ -66,7 +66,7 @@ export async function finalizeOnboardingWizard(
     process.platform === "linux" ? await isSystemdUserServiceAvailable() : true;
   if (process.platform === "linux" && !systemdAvailable) {
     await prompter.note(
-      "Systemd user services are unavailable. Skipping lingering checks and service install.",
+      "Servicios de usuario de Systemd no disponibles. Omitiendo verificación de lingering e instalación del servicio.",
       "Systemd",
     );
   }
@@ -80,7 +80,7 @@ export async function finalizeOnboardingWizard(
         note: prompter.note,
       },
       reason:
-        "Linux installs use a systemd user service by default. Without lingering, systemd stops the user session on logout/idle and kills the Gateway.",
+        "Las instalaciones Linux usan un servicio de usuario de systemd por defecto. Sin lingering, systemd detiene la sesión del usuario al cerrar sesión/inactividad y mata el Gateway.",
       requireConfirm: false,
     });
   }
@@ -96,15 +96,15 @@ export async function finalizeOnboardingWizard(
     installDaemon = true;
   } else {
     installDaemon = await prompter.confirm({
-      message: "Install Gateway service (recommended)",
+      message: "¿Instalar servicio Gateway? (recomendado)",
       initialValue: true,
     });
   }
 
   if (process.platform === "linux" && !systemdAvailable && installDaemon) {
     await prompter.note(
-      "Systemd user services are unavailable; skipping service install. Use your container supervisor or `docker compose up -d`.",
-      "Gateway service",
+      "Servicios de usuario de Systemd no disponibles; omitiendo instalación del servicio. Usá tu supervisor de contenedores o `docker compose up -d`.",
+      "Servicio Gateway",
     );
     installDaemon = false;
   }
@@ -114,33 +114,33 @@ export async function finalizeOnboardingWizard(
       flow === "quickstart"
         ? DEFAULT_GATEWAY_DAEMON_RUNTIME
         : await prompter.select({
-            message: "Gateway service runtime",
+            message: "Runtime del servicio Gateway",
             options: GATEWAY_DAEMON_RUNTIME_OPTIONS,
             initialValue: opts.daemonRuntime ?? DEFAULT_GATEWAY_DAEMON_RUNTIME,
           });
     if (flow === "quickstart") {
       await prompter.note(
-        "QuickStart uses Node for the Gateway service (stable + supported).",
-        "Gateway service runtime",
+        "QuickStart usa Node para el servicio Gateway (estable + soportado).",
+        "Runtime del servicio Gateway",
       );
     }
     const service = resolveGatewayService();
     const loaded = await service.isLoaded({ env: process.env });
     if (loaded) {
       const action = await prompter.select({
-        message: "Gateway service already installed",
+        message: "Servicio Gateway ya instalado",
         options: [
-          { value: "restart", label: "Restart" },
-          { value: "reinstall", label: "Reinstall" },
-          { value: "skip", label: "Skip" },
+          { value: "restart", label: "Reiniciar" },
+          { value: "reinstall", label: "Reinstalar" },
+          { value: "skip", label: "Omitir" },
         ],
       });
       if (action === "restart") {
         await withWizardProgress(
-          "Gateway service",
-          { doneMessage: "Gateway service restarted." },
+          "Servicio Gateway",
+          { doneMessage: "Servicio Gateway reiniciado." },
           async (progress) => {
-            progress.update("Restarting Gateway service…");
+            progress.update("Reiniciando servicio Gateway…");
             await service.restart({
               env: process.env,
               stdout: process.stdout,
@@ -149,10 +149,10 @@ export async function finalizeOnboardingWizard(
         );
       } else if (action === "reinstall") {
         await withWizardProgress(
-          "Gateway service",
-          { doneMessage: "Gateway service uninstalled." },
+          "Servicio Gateway",
+          { doneMessage: "Servicio Gateway desinstalado." },
           async (progress) => {
-            progress.update("Uninstalling Gateway service…");
+            progress.update("Desinstalando servicio Gateway…");
             await service.uninstall({ env: process.env, stdout: process.stdout });
           },
         );
@@ -160,10 +160,10 @@ export async function finalizeOnboardingWizard(
     }
 
     if (!loaded || (loaded && !(await service.isLoaded({ env: process.env })))) {
-      const progress = prompter.progress("Gateway service");
+      const progress = prompter.progress("Servicio Gateway");
       let installError: string | null = null;
       try {
-        progress.update("Preparing Gateway service…");
+        progress.update("Preparando servicio Gateway…");
         const { programArguments, workingDirectory, environment } = await buildGatewayInstallPlan({
           env: process.env,
           port: settings.port,
@@ -173,7 +173,7 @@ export async function finalizeOnboardingWizard(
           config: nextConfig,
         });
 
-        progress.update("Installing Gateway service…");
+        progress.update("Instalando servicio Gateway…");
         await service.install({
           env: process.env,
           stdout: process.stdout,
@@ -185,11 +185,11 @@ export async function finalizeOnboardingWizard(
         installError = err instanceof Error ? err.message : String(err);
       } finally {
         progress.stop(
-          installError ? "Gateway service install failed." : "Gateway service installed.",
+          installError ? "Falló la instalación del servicio Gateway." : "Servicio Gateway instalado.",
         );
       }
       if (installError) {
-        await prompter.note(`Gateway service install failed: ${installError}`, "Gateway");
+        await prompter.note(`Falló la instalación del servicio Gateway: ${installError}`, "Gateway");
         await prompter.note(gatewayInstallErrorHint(), "Gateway");
       }
     }
@@ -214,11 +214,11 @@ export async function finalizeOnboardingWizard(
       runtime.error(formatHealthCheckFailure(err));
       await prompter.note(
         [
-          "Docs:",
+          "Documentación:",
           "https://docs.agento.ai/gateway/health",
           "https://docs.agento.ai/gateway/troubleshooting",
         ].join("\n"),
-        "Health check help",
+        "Ayuda de health check",
       );
     }
   }
@@ -234,12 +234,12 @@ export async function finalizeOnboardingWizard(
 
   await prompter.note(
     [
-      "Add nodes for extra features:",
-      "- macOS app (system + notifications)",
-      "- iOS app (camera/canvas)",
-      "- Android app (camera/canvas)",
+      "Agregá nodos para funciones extra:",
+      "- App macOS (sistema + notificaciones)",
+      "- App iOS (cámara/canvas)",
+      "- App Android (cámara/canvas)",
     ].join("\n"),
-    "Optional apps",
+    "Apps opcionales",
   );
 
   const controlUiBasePath =
@@ -262,8 +262,8 @@ export async function finalizeOnboardingWizard(
     password: settings.authMode === "password" ? nextConfig.gateway?.auth?.password : "",
   });
   const gatewayStatusLine = gatewayProbe.ok
-    ? "Gateway: reachable"
-    : `Gateway: not detected${gatewayProbe.detail ? ` (${gatewayProbe.detail})` : ""}`;
+    ? "Gateway: accesible"
+    : `Gateway: no detectado${gatewayProbe.detail ? ` (${gatewayProbe.detail})` : ""}`;
   const bootstrapPath = path.join(
     resolveUserPath(options.workspaceDir),
     DEFAULT_BOOTSTRAP_FILENAME,
@@ -277,7 +277,7 @@ export async function finalizeOnboardingWizard(
     [
       `Web UI: ${links.httpUrl}`,
       settings.authMode === "token" && settings.gatewayToken
-        ? `Web UI (with token): ${authedUrl}`
+        ? `Web UI (con token): ${authedUrl}`
         : undefined,
       `Gateway WS: ${links.wsUrl}`,
       gatewayStatusLine,
@@ -285,7 +285,7 @@ export async function finalizeOnboardingWizard(
     ]
       .filter(Boolean)
       .join("\n"),
-    "Control UI",
+    "Interfaz de Control",
   );
 
   let controlUiOpened = false;
@@ -298,34 +298,34 @@ export async function finalizeOnboardingWizard(
     if (hasBootstrap) {
       await prompter.note(
         [
-          "This is the defining action that makes your agent you.",
-          "Please take your time.",
-          "The more you tell it, the better the experience will be.",
-          'We will send: "Wake up, my friend!"',
+          "Esta es la acción que define a tu agente.",
+          "Tomate tu tiempo.",
+          "Cuanto más le cuentes, mejor será la experiencia.",
+          'Enviaremos: "Wake up, my friend!"',
         ].join("\n"),
-        "Start TUI (best option!)",
+        "Iniciar TUI (mejor opción!)",
       );
     }
 
     await prompter.note(
       [
-        "Gateway token: shared auth for the Gateway + Control UI.",
-        "Stored in: ~/.agento/agento.json (gateway.auth.token) or AGENTO_GATEWAY_TOKEN.",
-        `View token: ${formatCliCommand("agento config get gateway.auth.token")}`,
-        `Generate token: ${formatCliCommand("agento doctor --generate-gateway-token")}`,
-        "Web UI stores a copy in this browser's localStorage (agento.control.settings.v1).","},{old:"`Open the dashboard anytime: ${formatCliCommand("openclaw dashboard --no-open")}`,
-        `Open the dashboard anytime: ${formatCliCommand("openclaw dashboard --no-open")}`,
-        "If prompted: paste the token into Control UI settings (or use the tokenized dashboard URL).",
+        "Token del Gateway: autenticación compartida para Gateway + Control UI.",
+        "Guardado en: ~/.agento/agento.json (gateway.auth.token) o AGENTO_GATEWAY_TOKEN.",
+        `Ver token: ${formatCliCommand("agento config get gateway.auth.token")}`,
+        `Generar token: ${formatCliCommand("agento doctor --generate-gateway-token")}`,
+        "La Web UI guarda una copia en localStorage (agento.control.settings.v1).",
+        `Abrir dashboard: ${formatCliCommand("openclaw dashboard --no-open")}`,
+        "Si te lo pide: pegá el token en la configuración del Control UI (o usá la URL con token).",
       ].join("\n"),
       "Token",
     );
 
     hatchChoice = await prompter.select({
-      message: "How do you want to hatch your bot?",
+      message: "¿Cómo querés iniciar tu bot?",
       options: [
-        { value: "tui", label: "Hatch in TUI (recommended)" },
-        { value: "web", label: "Open the Web UI" },
-        { value: "later", label: "Do this later" },
+        { value: "tui", label: "Iniciar en TUI (recomendado)" },
+        { value: "web", label: "Abrir Web UI" },
+        { value: "later", label: "Hacerlo después" },
       ],
       initialValue: "tui",
     });
@@ -361,37 +361,37 @@ export async function finalizeOnboardingWizard(
       }
       await prompter.note(
         [
-          `Dashboard link (with token): ${authedUrl}`,
+          `Link al dashboard (con token): ${authedUrl}`,
           controlUiOpened
-            ? "Opened in your browser. Keep that tab to control Agento."
-            : "Copy/paste this URL in a browser on this machine to control Agento.",
+            ? "Abierto en tu navegador. Mantené esa pestaña para controlar Agento."
+            : "Copiá/pegá esta URL en un navegador de esta máquina para controlar Agento.",
           controlUiOpenHint,
         ]
           .filter(Boolean)
           .join("\n"),
-        "Dashboard ready",
+        "Dashboard listo",
       );
     } else {
       await prompter.note(
-        `When you're ready: ${formatCliCommand("agento dashboard --no-open")}`,
-        "Later",
+        `Cuando estés listo: ${formatCliCommand("agento dashboard --no-open")}`,
+        "Después",
       );
     }
   } else if (opts.skipUi) {
-    await prompter.note("Skipping Control UI/TUI prompts.", "Control UI");
+    await prompter.note("Omitiendo prompts de Control UI/TUI.", "Interfaz de Control");
   }
 
   await prompter.note(
     [
-      "Back up your agent workspace.",
+      "Hacé backup de tu workspace de agente.",
       "Docs: https://docs.agento.ai/concepts/agent-workspace",
     ].join("\n"),
-    "Workspace backup",
+    "Backup del workspace",
   );
 
   await prompter.note(
-    "Running agents on your computer is risky — harden your setup: https://docs.agento.ai/security",
-    "Security",
+    "Ejecutar agentes en tu computadora es riesgoso — fortalecé tu configuración: https://docs.agento.ai/security",
+    "Seguridad",
   );
 
   await setupOnboardingShellCompletion({ flow, prompter });
@@ -422,15 +422,15 @@ export async function finalizeOnboardingWizard(
 
     await prompter.note(
       [
-        `Dashboard link (with token): ${authedUrl}`,
+        `Link al dashboard (con token): ${authedUrl}`,
         controlUiOpened
-          ? "Opened in your browser. Keep that tab to control Agento."
-          : "Copy/paste this URL in a browser on this machine to control Agento.",
+          ? "Abierto en tu navegador. Mantené esa pestaña para controlar Agento."
+          : "Copiá/pegá esta URL en un navegador de esta máquina para controlar Agento.",
         controlUiOpenHint,
       ]
         .filter(Boolean)
         .join("\n"),
-      "Dashboard ready",
+      "Dashboard listo",
     );
   }
 
@@ -440,39 +440,39 @@ export async function finalizeOnboardingWizard(
   await prompter.note(
     hasWebSearchKey
       ? [
-          "Web search is enabled, so your agent can look things up online when needed.",
+          "Búsqueda web habilitada, tu agente puede buscar en línea cuando lo necesite.",
           "",
           webSearchKey
-            ? "API key: stored in config (tools.web.search.apiKey)."
-            : "API key: provided via BRAVE_API_KEY env var (Gateway environment).",
+            ? "API key: guardada en config (tools.web.search.apiKey)."
+            : "API key: proporcionada via BRAVE_API_KEY env var (entorno Gateway).",
           "Docs: https://docs.agento.ai/tools/web",
         ].join("\n")
       : [
-          "If you want your agent to be able to search the web, you’ll need an API key.",
+          "Si querés que tu agente pueda buscar en la web, vas a necesitar una API key.",
           "",
-          "OpenClaw uses Brave Search for the `web_search` tool. Without a Brave Search API key, web search won’t work.",
+          "OpenClaw usa Brave Search para la herramienta `web_search`. Sin una API key de Brave Search, la búsqueda web no funcionará.",
           "",
-          "Set it up interactively:",
-          `- Run: ${formatCliCommand("agento configure --section web")}`,
-          "- Enable web_search and paste your Brave Search API key",
+          "Configurala interactivamente:",
+          `- Ejecutá: ${formatCliCommand("agento configure --section web")}`,
+          "- Habilitá web_search y pegá tu API key de Brave Search",
           "",
-          "Alternative: set BRAVE_API_KEY in the Gateway environment (no config changes).",
+          "Alternativa: configurá BRAVE_API_KEY en el entorno del Gateway (sin cambios de config).",
           "Docs: https://docs.agento.ai/tools/web",
         ].join("\n"),
-    "Web search (optional)",
+    "Búsqueda web (opcional)",
   );
 
   await prompter.note(
-    'What now: https://agento.ai/showcase ("What People Are Building").',
-    "What now",
+    'Qué hacer ahora: https://agento.ai/showcase ("Lo que la gente está construyendo").',
+    "Qué sigue",
   );
 
   await prompter.outro(
     controlUiOpened
-      ? "Onboarding complete. Dashboard opened; keep that tab to control Agento."
+      ? "Onboarding completo. Dashboard abierto; mantené esa pestaña para controlar Agento."
       : seededInBackground
-        ? "Onboarding complete. Web UI seeded in the background; open it anytime with the dashboard link above."
-        : "Onboarding complete. Use the dashboard link above to control Agento.",
+        ? "Onboarding completo. Web UI iniciada en segundo plano; abrila cuando quieras con el link arriba."
+        : "Onboarding completo. Usá el link al dashboard arriba para controlar Agento.",
   );
 
   return { launchedTui };

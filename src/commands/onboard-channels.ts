@@ -54,19 +54,19 @@ async function promptConfiguredAction(params: {
   const { prompter, label, supportsDisable, supportsDelete } = params;
   const updateOption: WizardSelectOption<ConfiguredChannelAction> = {
     value: "update",
-    label: "Modify settings",
+    label: "Modificar configuración",
   };
   const disableOption: WizardSelectOption<ConfiguredChannelAction> = {
     value: "disable",
-    label: "Disable (keeps config)",
+    label: "Desactivar (mantiene config)",
   };
   const deleteOption: WizardSelectOption<ConfiguredChannelAction> = {
     value: "delete",
-    label: "Delete config",
+    label: "Eliminar configuración",
   };
   const skipOption: WizardSelectOption<ConfiguredChannelAction> = {
     value: "skip",
-    label: "Skip (leave as-is)",
+    label: "Omitir (dejar como está)",
   };
   const options: Array<WizardSelectOption<ConfiguredChannelAction>> = [
     updateOption,
@@ -75,7 +75,7 @@ async function promptConfiguredAction(params: {
     skipOption,
   ];
   return await prompter.select({
-    message: `${label} already configured. What do you want to do?`,
+    message: `${label} ya configurado. ¿Qué querés hacer?`,
     options,
     initialValue: "update",
   });
@@ -172,7 +172,7 @@ export async function noteChannelStatus(params: {
     accountOverrides: params.accountOverrides ?? {},
   });
   if (statusLines.length > 0) {
-    await params.prompter.note(statusLines.join("\n"), "Channel status");
+    await params.prompter.note(statusLines.join("\n"), "Estado de canales");
   }
 }
 
@@ -191,15 +191,15 @@ async function noteChannelPrimer(
   );
   await prompter.note(
     [
-      "DM security: default is pairing; unknown DMs get a pairing code.",
-      `Approve with: ${formatCliCommand("openclaw pairing approve <channel> <code>")}`,
-      'Public DMs require dmPolicy="open" + allowFrom=["*"].',
-      'Multi-user DMs: set session.dmScope="per-channel-peer" (or "per-account-channel-peer" for multi-account channels) to isolate sessions.',
+      "Seguridad DM: por defecto es emparejamiento; DMs desconocidos reciben un código de emparejamiento.",
+      `Aprobar con: ${formatCliCommand("openclaw pairing approve <canal> <código>")}`,
+      'DMs públicos requieren dmPolicy="open" + allowFrom=["*"].',
+      'DMs multi-usuario: configurá session.dmScope="per-channel-peer" (o "per-account-channel-peer" para canales multi-cuenta) para aislar sesiones.',
       `Docs: ${formatDocsLink("/start/pairing", "start/pairing")}`,
       "",
       ...channelLines,
     ].join("\n"),
-    "How channels work",
+    "Cómo funcionan los canales",
   );
 }
 
@@ -233,7 +233,7 @@ async function maybeConfigureDmPolicies(params: {
   }
 
   const wants = await prompter.confirm({
-    message: "Configure DM access policies now? (default: pairing)",
+    message: "¿Configurar políticas de acceso DM ahora? (por defecto: emparejamiento)",
     initialValue: false,
   });
   if (!wants) {
@@ -244,22 +244,22 @@ async function maybeConfigureDmPolicies(params: {
   const selectPolicy = async (policy: ChannelOnboardingDmPolicy) => {
     await prompter.note(
       [
-        "Default: pairing (unknown DMs get a pairing code).",
-        `Approve: ${formatCliCommand(`openclaw pairing approve ${policy.channel} <code>`)}`,
-        `Allowlist DMs: ${policy.policyKey}="allowlist" + ${policy.allowFromKey} entries.`,
-        `Public DMs: ${policy.policyKey}="open" + ${policy.allowFromKey} includes "*".`,
-        'Multi-user DMs: set session.dmScope="per-channel-peer" (or "per-account-channel-peer" for multi-account channels) to isolate sessions.',
+        "Por defecto: emparejamiento (DMs desconocidos reciben un código).",
+        `Aprobar: ${formatCliCommand(`openclaw pairing approve ${policy.channel} <código>`)}`,
+        `DMs con allowlist: ${policy.policyKey}="allowlist" + entradas en ${policy.allowFromKey}.`,
+        `DMs públicos: ${policy.policyKey}="open" + ${policy.allowFromKey} incluye "*".`,
+        'DMs multi-usuario: configurá session.dmScope="per-channel-peer" (o "per-account-channel-peer" para canales multi-cuenta) para aislar sesiones.',
         `Docs: ${formatDocsLink("/start/pairing", "start/pairing")}`,
       ].join("\n"),
-      `${policy.label} DM access`,
+      `Acceso DM de ${policy.label}`,
     );
     return (await prompter.select({
-      message: `${policy.label} DM policy`,
+      message: `Política DM de ${policy.label}`,
       options: [
-        { value: "pairing", label: "Pairing (recommended)" },
-        { value: "allowlist", label: "Allowlist (specific users only)" },
-        { value: "open", label: "Open (public inbound DMs)" },
-        { value: "disabled", label: "Disabled (ignore DMs)" },
+        { value: "pairing", label: "Emparejamiento (recomendado)" },
+        { value: "allowlist", label: "Allowlist (solo usuarios específicos)" },
+        { value: "open", label: "Abierto (DMs públicos entrantes)" },
+        { value: "disabled", label: "Desactivado (ignorar DMs)" },
       ],
     })) as DmPolicy;
   };
@@ -308,7 +308,7 @@ export async function setupChannels(
   const shouldConfigure = options?.skipConfirm
     ? true
     : await prompter.confirm({
-        message: "Configure chat channels now?",
+        message: "¿Configurar canales de chat ahora?",
         initialValue: true,
       });
   if (!shouldConfigure) {
@@ -451,8 +451,8 @@ export async function setupChannels(
     next = result.config;
     if (!result.enabled) {
       await prompter.note(
-        `Cannot enable ${channel}: ${result.reason ?? "plugin disabled"}.`,
-        "Channel setup",
+        `No se puede habilitar ${channel}: ${result.reason ?? "plugin desactivado"}.`,
+        "Configuración de canal",
       );
       return false;
     }
@@ -463,7 +463,7 @@ export async function setupChannels(
       workspaceDir,
     });
     if (!getChannelPlugin(channel)) {
-      await prompter.note(`${channel} plugin not available.`, "Channel setup");
+      await prompter.note(`Plugin ${channel} no disponible.`, "Configuración de canal");
       return false;
     }
     await refreshStatus(channel);
@@ -473,7 +473,7 @@ export async function setupChannels(
   const configureChannel = async (channel: ChannelChoice) => {
     const adapter = getChannelOnboardingAdapter(channel);
     if (!adapter) {
-      await prompter.note(`${channel} does not support onboarding yet.`, "Channel setup");
+      await prompter.note(`${channel} aún no soporta onboarding.`, "Configuración de canal");
       return;
     }
     const result = await adapter.configure({
@@ -519,7 +519,7 @@ export async function setupChannels(
     }
 
     if (action === "delete" && !supportsDelete) {
-      await prompter.note(`${label} does not support deleting config entries.`, "Remove channel");
+      await prompter.note(`${label} no soporta eliminar entradas de configuración.`, "Eliminar canal");
       return;
     }
 
@@ -542,7 +542,7 @@ export async function setupChannels(
 
     if (action === "delete") {
       const confirmed = await prompter.confirm({
-        message: `Delete ${label} account "${accountLabel}"?`,
+        message: `¿Eliminar cuenta "${accountLabel}" de ${label}?`,
         initialValue: false,
       });
       if (!confirmed) {
@@ -610,13 +610,13 @@ export async function setupChannels(
   if (options?.quickstartDefaults) {
     const { entries } = getChannelEntries();
     const choice = (await prompter.select({
-      message: "Select channel (QuickStart)",
+      message: "Seleccionar canal (QuickStart)",
       options: [
         ...buildSelectionOptions(entries),
         {
           value: "__skip__",
-          label: "Skip for now",
-          hint: `You can add channels later via \`${formatCliCommand("openclaw channels add")}\``,
+          label: "Omitir por ahora",
+          hint: `Podés agregar canales después con \`${formatCliCommand("openclaw channels add")}\``,
         },
       ],
       initialValue: quickstartDefault,
@@ -630,13 +630,13 @@ export async function setupChannels(
     while (true) {
       const { entries } = getChannelEntries();
       const choice = (await prompter.select({
-        message: "Select a channel",
+        message: "Seleccionar un canal",
         options: [
           ...buildSelectionOptions(entries),
           {
             value: doneValue,
-            label: "Finished",
-            hint: selection.length > 0 ? "Done" : "Skip for now",
+            label: "Terminado",
+            hint: selection.length > 0 ? "Listo" : "Omitir por ahora",
           },
         ],
         initialValue,

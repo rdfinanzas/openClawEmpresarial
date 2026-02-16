@@ -152,7 +152,26 @@ if (!shouldBuild()) {
     if (code !== 0 && code !== null) {
       process.exit(code);
     }
-    writeBuildStamp();
-    runNode();
+
+    // Ejecutar fix-exportall.mjs después del build
+    logRunner("Running fix-exportall patch...");
+    const fixExportAll = spawn(
+      process.platform === "win32" ? "cmd.exe" : "node",
+      process.platform === "win32"
+        ? ["/d", "/s", "/c", "node", "scripts/fix-exportall.mjs"]
+        : ["scripts/fix-exportall.mjs"],
+      { cwd, env, stdio: "inherit" }
+    );
+
+    fixExportAll.on("exit", (fixCode, fixSignal) => {
+      if (fixSignal) {
+        process.exit(1);
+      }
+      if (fixCode !== 0 && fixCode !== null) {
+        process.exit(fixCode);
+      }
+      writeBuildStamp();
+      runNode();
+    });
   });
 }

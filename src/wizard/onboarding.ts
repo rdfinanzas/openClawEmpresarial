@@ -1,3 +1,18 @@
+/**
+ * OpenClaw - Wizard de Configuración Unificado
+ *
+ * Wizard completo que configura:
+ * - Gateway (puerto, red, autenticación)
+ * - Modelo LLM (Claude, OpenAI, Gemini, etc.)
+ * - Configuración empresarial (admin, managers, ventas)
+ * - Canales principales (WhatsApp, Telegram)
+ * - Canales de soporte (Discord, Slack)
+ *
+ * USO:
+ *   openclaw onboard           # Flujo interactivo completo
+ *   openclaw onboard --flow quickstart  # Configuración rápida
+ */
+
 import type {
   GatewayAuthChoice,
   OnboardMode,
@@ -43,8 +58,10 @@ import { resolveUserPath } from "../utils.js";
 import { finalizeOnboardingWizard } from "./onboarding.finalize.js";
 import { configureGatewayForOnboarding } from "./onboarding.gateway-config.js";
 import { WizardCancelledError, type WizardPrompter } from "./prompts.js";
-import { runEnterpriseWizard } from "./onboarding-enterprise.js";
 
+// ============================================================
+// MENSAJE DE ADVERTENCIA DE SEGURIDAD
+// ============================================================
 async function requireRiskAcknowledgement(params: {
   opts: OnboardOptions;
   prompter: WizardPrompter;
@@ -55,176 +72,202 @@ async function requireRiskAcknowledgement(params: {
 
   await params.prompter.note(
     [
-      "Security warning — please read.",
+      "⚠️  ADVERTENCIA DE SEGURIDAD - Por favor leer.",
       "",
-      "Agento is a hobby project and still in beta. Expect sharp edges.",
-      "This bot can read files and run actions if tools are enabled.",
-      "A bad prompt can trick it into doing unsafe things.",
+      "OpenClaw es un proyecto en desarrollo activo (beta).",
+      "Este bot puede leer archivos y ejecutar acciones si las herramientas están habilitadas.",
+      "Un prompt malicioso puede engañarlo para hacer cosas inseguras.",
       "",
-      "If you’re not comfortable with basic security and access control, don’t run OpenClaw.",
-      "Ask someone experienced to help before enabling tools or exposing it to the internet.",
+      "Si no estás cómodo con conceptos básicos de seguridad y control de acceso,",
+      "no ejecutes OpenClaw. Pide ayuda a alguien con experiencia antes de",
+      "habilitar herramientas o exponerlo a internet.",
       "",
-      "Recommended baseline:",
-      "- Pairing/allowlists + mention gating.",
-      "- Sandbox + least-privilege tools.",
-      "- Keep secrets out of the agent’s reachable filesystem.",
-      "- Use the strongest available model for any bot with tools or untrusted inboxes.",
+      "Configuración recomendada:",
+      "- Listas de emparejamiento/permitidos + mención obligatoria.",
+      "- Sandbox + herramientas con mínimos privilegios.",
+      "- Mantén los secretos fuera del sistema de archivos accesible por el agente.",
+      "- Usa el modelo más potente disponible para bots con herramientas o bandejas no confiables.",
       "",
-      "Run regularly:",
-      "agento security audit --deep",
-      "agento security audit --fix",
+      "Ejecutar regularmente:",
+      `  ${formatCliCommand("openclaw security audit --deep")}`,
+      `  ${formatCliCommand("openclaw security audit --fix")}`,
       "",
-      "Must read: https://docs.agento.ai/gateway/security",
+      "Lectura obligatoria: https://docs.openclaw.ai/gateway/security",
     ].join("\n"),
-    "Security",
+    "Seguridad",
   );
 
   const ok = await params.prompter.confirm({
-    message: "I understand this is powerful and inherently risky. Continue?",
+    message: "Entiendo que esto es potente e inherentemente riesgoso. ¿Continuar?",
     initialValue: false,
   });
   if (!ok) {
-    throw new WizardCancelledError("risk not accepted");
+    throw new WizardCancelledError("riesgo no aceptado");
   }
 }
 
+// ============================================================
+// HELPERS PARA DETECTAR CONFIGURACIÓN EXISTENTE
+// ============================================================
+
+function hasModelConfigured(cfg: OpenClawConfig): boolean {
+  return Boolean(
+    cfg.agents?.defaults?.model?.primary ||
+    (cfg.auth?.profiles && Object.keys(cfg.auth.profiles).length > 0)
+  );
+}
+
+function hasChannelsConfigured(cfg: OpenClawConfig): boolean {
+  const channels = cfg.channels;
+  if (!channels) return false;
+  return Boolean(
+    channels.telegram?.botToken ||
+    channels.telegram?.enabled ||
+    channels.whatsapp?.enabled ||
+    channels.discord?.enabled ||
+    channels.slack?.enabled
+  );
+}
+
+function hasEnterpriseConfigured(cfg: OpenClawConfig): boolean {
+  return Boolean(
+    cfg.enterprise?.personality?.businessName ||
+    cfg.enterprise?.features?.dualPersonality
+  );
+}
+
+function hasGatewayConfigured(cfg: OpenClawConfig): boolean {
+  return Boolean(
+    typeof cfg.gateway?.port === "number" ||
+    cfg.gateway?.auth?.token ||
+    cfg.gateway?.auth?.password
+  );
+}
+
+async function askKeepOrModify(
+  prompter: WizardPrompter,
+  sectionName: string,
+  summary: string,
+): Promise<boolean> {
+  const action = await prompter.select({
+    message: `${sectionName} - ¿Qué hacer?`,
+    options: [
+      { value: "keep", label: `Mantener (${summary})` },
+      { value: "modify", label: "Modificar" },
+    ],
+    initialValue: "keep",
+  });
+  return action === "keep";
+}
+
+// ============================================================
+// FUNCIÓN PRINCIPAL DEL WIZARD
+// ============================================================
 export async function runOnboardingWizard(
   opts: OnboardOptions,
   runtime: RuntimeEnv = defaultRuntime,
   prompter: WizardPrompter,
 ) {
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 0: ENCABEZADO Y SEGURIDAD
+  // ═══════════════════════════════════════════════════════════════
   printWizardHeader(runtime);
-  await prompter.intro("Agento onboarding");
+  await prompter.intro("🏪 Agento - Configuración Inicial");
   await requireRiskAcknowledgement({ opts, prompter });
 
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 1: DETECTAR CONFIGURACIÓN EXISTENTE
+  // ═══════════════════════════════════════════════════════════════
   const snapshot = await readConfigFileSnapshot();
   let baseConfig: OpenClawConfig = snapshot.valid ? snapshot.config : {};
 
   if (snapshot.exists && !snapshot.valid) {
-    await prompter.note(summarizeExistingConfig(baseConfig), "Invalid config");
+    await prompter.note(summarizeExistingConfig(baseConfig), "Configuración inválida");
     if (snapshot.issues.length > 0) {
       await prompter.note(
         [
           ...snapshot.issues.map((iss) => `- ${iss.path}: ${iss.message}`),
           "",
-          "Docs: https://docs.agento.ai/gateway/configuration",
+          "Documentación: https://docs.openclaw.ai/gateway/configuration",
         ].join("\n"),
-        "Config issues",
+        "Problemas de configuración",
       );
     }
     await prompter.outro(
-      `Config invalid. Run \`${formatCliCommand("agento doctor")}\` to repair it, then re-run onboarding.`,
+      `Configuración inválida. Ejecuta \`${formatCliCommand("openclaw doctor")}\` para repararla.`,
     );
     runtime.exit(1);
     return;
   }
 
-  const quickstartHint = `Configure details later via ${formatCliCommand("agento configure")}.`;
-  const manualHint = "Configure port, network, Tailscale, and auth options.";
-  const explicitFlowRaw = opts.flow?.trim();
-  const normalizedExplicitFlow = explicitFlowRaw === "manual" ? "advanced" : explicitFlowRaw;
-  if (
-    normalizedExplicitFlow &&
-    normalizedExplicitFlow !== "quickstart" &&
-    normalizedExplicitFlow !== "advanced"
-  ) {
-    runtime.error("Invalid --flow (use quickstart, manual, or advanced).");
-    runtime.exit(1);
-    return;
-  }
-  const explicitFlow: WizardFlow | undefined =
-    normalizedExplicitFlow === "quickstart" || normalizedExplicitFlow === "advanced"
-      ? normalizedExplicitFlow
-      : undefined;
-  let flow: WizardFlow =
-    explicitFlow ??
-    (await prompter.select({
-      message: "Onboarding mode",
-      options: [
-        { value: "quickstart", label: "QuickStart", hint: quickstartHint },
-        { value: "advanced", label: "Manual", hint: manualHint },
-      ],
-      initialValue: "quickstart",
-    }));
-
-  if (opts.mode === "remote" && flow === "quickstart") {
-    await prompter.note(
-      "QuickStart only supports local gateways. Switching to Manual mode.",
-      "QuickStart",
-    );
-    flow = "advanced";
-  }
-
+  // Preguntar qué hacer con config existente
+  let keepExisting = false;
   if (snapshot.exists) {
-    await prompter.note(summarizeExistingConfig(baseConfig), "Existing config detected");
+    await prompter.note(summarizeExistingConfig(baseConfig), "Configuración existente detectada");
 
     const action = await prompter.select({
-      message: "Config handling",
+      message: "Manejo de configuración",
       options: [
-        { value: "keep", label: "Use existing values" },
-        { value: "modify", label: "Update values" },
-        { value: "reset", label: "Reset" },
+        { value: "keep", label: "Usar valores existentes (completar lo que falte)" },
+        { value: "modify", label: "Revisar y modificar cada sección" },
+        { value: "reset", label: "Reiniciar todo" },
       ],
     });
 
     if (action === "reset") {
       const workspaceDefault = baseConfig.agents?.defaults?.workspace ?? DEFAULT_WORKSPACE;
       const resetScope = (await prompter.select({
-        message: "Reset scope",
+        message: "Alcance del reinicio",
         options: [
-          { value: "config", label: "Config only" },
-          {
-            value: "config+creds+sessions",
-            label: "Config + creds + sessions",
-          },
-          {
-            value: "full",
-            label: "Full reset (config + creds + sessions + workspace)",
-          },
+          { value: "config", label: "Solo configuración" },
+          { value: "config+creds+sessions", label: "Config + credenciales + sesiones" },
+          { value: "full", label: "Reinicio completo" },
         ],
       })) as ResetScope;
       await handleReset(resetScope, resolveUserPath(workspaceDefault), runtime);
       baseConfig = {};
+    } else if (action === "keep") {
+      keepExisting = true;
     }
   }
 
-  const quickstartGateway: QuickstartGatewayDefaults = (() => {
-    const hasExisting =
-      typeof baseConfig.gateway?.port === "number" ||
-      baseConfig.gateway?.bind !== undefined ||
-      baseConfig.gateway?.auth?.mode !== undefined ||
-      baseConfig.gateway?.auth?.token !== undefined ||
-      baseConfig.gateway?.auth?.password !== undefined ||
-      baseConfig.gateway?.customBindHost !== undefined ||
-      baseConfig.gateway?.tailscale?.mode !== undefined;
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 2: SELECCIÓN DE MODO
+  // ═══════════════════════════════════════════════════════════════
+  const quickstartHint = `Configurar detalles después con ${formatCliCommand("openclaw configure")}.`;
+  const manualHint = "Configurar cada opción manualmente.";
 
+  let flow: WizardFlow = opts.flow === "advanced" || opts.flow === "manual"
+    ? "advanced"
+    : opts.flow === "quickstart"
+      ? "quickstart"
+      : await prompter.select({
+          message: "Modo de configuración",
+          options: [
+            { value: "quickstart", label: "QuickStart (Recomendado)", hint: quickstartHint },
+            { value: "advanced", label: "Manual / Avanzado", hint: manualHint },
+          ],
+          initialValue: "quickstart",
+        });
+
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 3: CONFIGURACIÓN DEL GATEWAY
+  // ═══════════════════════════════════════════════════════════════
+  const quickstartGateway: QuickstartGatewayDefaults = (() => {
+    const hasExisting = hasGatewayConfigured(baseConfig);
     const bindRaw = baseConfig.gateway?.bind;
-    const bind =
-      bindRaw === "loopback" ||
-      bindRaw === "lan" ||
-      bindRaw === "auto" ||
-      bindRaw === "custom" ||
-      bindRaw === "tailnet"
-        ? bindRaw
-        : "loopback";
+    const bind = ["loopback", "lan", "auto", "custom", "tailnet"].includes(bindRaw as string)
+      ? bindRaw as "loopback" | "lan" | "auto" | "custom" | "tailnet"
+      : "loopback";
 
     let authMode: GatewayAuthChoice = "token";
-    if (
-      baseConfig.gateway?.auth?.mode === "token" ||
-      baseConfig.gateway?.auth?.mode === "password"
-    ) {
-      authMode = baseConfig.gateway.auth.mode;
-    } else if (baseConfig.gateway?.auth?.token) {
-      authMode = "token";
-    } else if (baseConfig.gateway?.auth?.password) {
-      authMode = "password";
-    }
+    if (baseConfig.gateway?.auth?.mode === "password") authMode = "password";
+    else if (baseConfig.gateway?.auth?.token) authMode = "token";
+    else if (baseConfig.gateway?.auth?.password) authMode = "password";
 
-    const tailscaleRaw = baseConfig.gateway?.tailscale?.mode;
-    const tailscaleMode =
-      tailscaleRaw === "off" || tailscaleRaw === "serve" || tailscaleRaw === "funnel"
-        ? tailscaleRaw
-        : "off";
+    const tailscaleMode = ["off", "serve", "funnel"].includes(baseConfig.gateway?.tailscale?.mode as string)
+      ? baseConfig.gateway?.tailscale?.mode as "off" | "serve" | "funnel"
+      : "off";
 
     return {
       hasExisting,
@@ -239,59 +282,22 @@ export async function runOnboardingWizard(
     };
   })();
 
+  // Mostrar config QuickStart
   if (flow === "quickstart") {
-    const formatBind = (value: "loopback" | "lan" | "auto" | "custom" | "tailnet") => {
-      if (value === "loopback") {
-        return "Loopback (127.0.0.1)";
-      }
-      if (value === "lan") {
-        return "LAN";
-      }
-      if (value === "custom") {
-        return "Custom IP";
-      }
-      if (value === "tailnet") {
-        return "Tailnet (Tailscale IP)";
-      }
-      return "Auto";
-    };
-    const formatAuth = (value: GatewayAuthChoice) => {
-      if (value === "token") {
-        return "Token (default)";
-      }
-      return "Password";
-    };
-    const formatTailscale = (value: "off" | "serve" | "funnel") => {
-      if (value === "off") {
-        return "Off";
-      }
-      if (value === "serve") {
-        return "Serve";
-      }
-      return "Funnel";
-    };
-    const quickstartLines = quickstartGateway.hasExisting
+    const qsLines = quickstartGateway.hasExisting
       ? [
-          "Keeping your current gateway settings:",
-          `Gateway port: ${quickstartGateway.port}`,
-          `Gateway bind: ${formatBind(quickstartGateway.bind)}`,
-          ...(quickstartGateway.bind === "custom" && quickstartGateway.customBindHost
-            ? [`Gateway custom IP: ${quickstartGateway.customBindHost}`]
-            : []),
-          `Gateway auth: ${formatAuth(quickstartGateway.authMode)}`,
-          `Tailscale exposure: ${formatTailscale(quickstartGateway.tailscaleMode)}`,
-          "Direct to chat channels.",
+          "Manteniendo configuración del gateway:",
+          `Puerto: ${quickstartGateway.port}`,
+          `Autenticación: ${quickstartGateway.authMode === "token" ? "Token" : "Contraseña"}`,
         ]
       : [
-          `Gateway port: ${DEFAULT_GATEWAY_PORT}`,
-          "Gateway bind: Loopback (127.0.0.1)",
-          "Gateway auth: Token (default)",
-          "Tailscale exposure: Off",
-          "Direct to chat channels.",
+          `Puerto: ${DEFAULT_GATEWAY_PORT}`,
+          "Autenticación: Token",
         ];
-    await prompter.note(quickstartLines.join("\n"), "QuickStart");
+    await prompter.note(qsLines.join("\n"), "QuickStart");
   }
 
+  // Detectar gateway
   const localPort = resolveGatewayPort(baseConfig);
   const localUrl = `ws://127.0.0.1:${localPort}`;
   const localProbe = await probeGatewayReachable({
@@ -299,235 +305,263 @@ export async function runOnboardingWizard(
     token: baseConfig.gateway?.auth?.token ?? process.env.OPENCLAW_GATEWAY_TOKEN,
     password: baseConfig.gateway?.auth?.password ?? process.env.OPENCLAW_GATEWAY_PASSWORD,
   });
-  const remoteUrl = baseConfig.gateway?.remote?.url?.trim() ?? "";
-  const remoteProbe = remoteUrl
-    ? await probeGatewayReachable({
-        url: remoteUrl,
-        token: baseConfig.gateway?.remote?.token,
-      })
-    : null;
 
-  const mode =
-    opts.mode ??
-    (flow === "quickstart"
-      ? "local"
-      : ((await prompter.select({
-          message: "What do you want to set up?",
-          options: [
-            {
-              value: "local",
-              label: "Local gateway (this machine)",
-              hint: localProbe.ok
-                ? `Gateway reachable (${localUrl})`
-                : `No gateway detected (${localUrl})`,
-            },
-            {
-              value: "remote",
-              label: "Remote gateway (info-only)",
-              hint: !remoteUrl
-                ? "No remote URL configured yet"
-                : remoteProbe?.ok
-                  ? `Gateway reachable (${remoteUrl})`
-                  : `Configured but unreachable (${remoteUrl})`,
-            },
-          ],
-        })) as OnboardMode));
+  // Seleccionar modo local/remote
+  const mode = opts.mode ?? (flow === "quickstart" ? "local" : await prompter.select({
+    message: "¿Qué querés configurar?",
+    options: [
+      { value: "local", label: "Gateway local", hint: localProbe.ok ? "Detectado" : "No detectado" },
+      { value: "remote", label: "Gateway remoto" },
+    ],
+  }) as OnboardMode);
 
   if (mode === "remote") {
     let nextConfig = await promptRemoteGatewayConfig(baseConfig, prompter);
     nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
     await writeConfigFile(nextConfig);
-    logConfigUpdated(runtime);
-    await prompter.outro("Remote gateway configured.");
+    await prompter.outro("Gateway remoto configurado.");
     return;
   }
 
-  const workspaceInput =
-    opts.workspace ??
-    (flow === "quickstart"
-      ? (baseConfig.agents?.defaults?.workspace ?? DEFAULT_WORKSPACE)
-      : await prompter.text({
-          message: "Workspace directory",
-          initialValue: baseConfig.agents?.defaults?.workspace ?? DEFAULT_WORKSPACE,
-        }));
+  // Workspace
+  const workspaceInput = opts.workspace ?? (flow === "quickstart"
+    ? (baseConfig.agents?.defaults?.workspace ?? DEFAULT_WORKSPACE)
+    : await prompter.text({
+        message: "Directorio del workspace",
+        initialValue: baseConfig.agents?.defaults?.workspace ?? DEFAULT_WORKSPACE,
+      }));
 
   const workspaceDir = resolveUserPath(workspaceInput.trim() || DEFAULT_WORKSPACE);
 
   let nextConfig: OpenClawConfig = {
     ...baseConfig,
-    agents: {
-      ...baseConfig.agents,
-      defaults: {
-        ...baseConfig.agents?.defaults,
-        workspace: workspaceDir,
-      },
-    },
-    gateway: {
-      ...baseConfig.gateway,
-      mode: "local",
-    },
+    agents: { ...baseConfig.agents, defaults: { ...baseConfig.agents?.defaults, workspace: workspaceDir } },
+    gateway: { ...baseConfig.gateway, mode: "local" },
   };
 
-  const authStore = ensureAuthProfileStore(undefined, {
-    allowKeychainPrompt: false,
-  });
-  const authChoiceFromPrompt = opts.authChoice === undefined;
-  const authChoice =
-    opts.authChoice ??
-    (await promptAuthChoiceGrouped({
-      prompter,
-      store: authStore,
-      includeSkip: true,
-    }));
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 4: MODELO IA
+  // ═══════════════════════════════════════════════════════════════
+  const modelConfigured = hasModelConfigured(baseConfig);
 
-  let customPreferredProvider: string | undefined;
-  if (authChoice === "custom-api-key") {
-    const customResult = await promptCustomApiConfig({
-      prompter,
-      runtime,
-      config: nextConfig,
-    });
-    nextConfig = customResult.config;
-    customPreferredProvider = customResult.providerId;
-  } else {
-    const authResult = await applyAuthChoice({
-      authChoice,
-      config: nextConfig,
-      prompter,
-      runtime,
-      setDefaultModel: true,
-      opts: {
-        tokenProvider: opts.tokenProvider,
-        token: opts.authChoice === "apiKey" && opts.token ? opts.token : undefined,
-      },
-    });
-    nextConfig = authResult.config;
+  // Verificar si hay API key configurada (no solo el modelo)
+  const hasAuthProfile = Boolean(
+    baseConfig.auth?.profiles && Object.keys(baseConfig.auth.profiles).length > 0
+  );
+
+  // Solo saltar si BOTH modelo Y auth están configurados
+  let skipModel = false;
+  if (keepExisting && modelConfigured && hasAuthProfile) {
+    skipModel = await askKeepOrModify(prompter, "Modelo IA", baseConfig.agents?.defaults?.model?.primary || "configurado");
+  } else if (keepExisting && modelConfigured && !hasAuthProfile) {
+    // Modelo configurado pero SIN API key - mostrar aviso
+    await prompter.note(
+      [
+        `Modelo: ${baseConfig.agents?.defaults?.model?.primary}`,
+        "",
+        "⚠️ No hay API key configurada.",
+        "Necesitás configurar la autenticación para que funcione.",
+      ].join("\n"),
+      "Auth faltante"
+    );
+    skipModel = false;  // NO saltar, necesita configurar auth
   }
 
-  if (authChoiceFromPrompt && authChoice !== "custom-api-key") {
-    const modelSelection = await promptDefaultModel({
-      config: nextConfig,
-      prompter,
-      allowKeep: true,
-      ignoreAllowlist: true,
-      preferredProvider:
-        customPreferredProvider ?? resolvePreferredProviderForAuthChoice(authChoice),
-    });
-    if (modelSelection.model) {
-      nextConfig = applyPrimaryModel(nextConfig, modelSelection.model);
+  if (!skipModel) {
+    await prompter.note(
+      ["🤖 CONFIGURACIÓN DEL MODELO IA", "", "Selecciona el proveedor de IA para tu asistente."].join("\n"),
+      "Paso 1"
+    );
+
+    const authStore = ensureAuthProfileStore(undefined, { allowKeychainPrompt: false });
+    const authChoice = opts.authChoice ?? await promptAuthChoiceGrouped({ prompter, store: authStore, includeSkip: true });
+
+    if (authChoice === "custom-api-key") {
+      const customResult = await promptCustomApiConfig({ prompter, runtime, config: nextConfig });
+      nextConfig = customResult.config;
+    } else if (authChoice !== "skip") {
+      const authResult = await applyAuthChoice({
+        authChoice,
+        config: nextConfig,
+        prompter,
+        runtime,
+        setDefaultModel: true,
+        opts: { tokenProvider: opts.tokenProvider },
+      });
+      nextConfig = authResult.config;
     }
+
+    // Siempre permitir seleccionar modelo (puede que el usuario quiera cambiar)
+    if (authChoice !== "skip") {
+      const modelSelection = await promptDefaultModel({
+        config: nextConfig,
+        prompter,
+        allowKeep: true,
+        ignoreAllowlist: true,
+      });
+      if (modelSelection.model) {
+        nextConfig = applyPrimaryModel(nextConfig, modelSelection.model);
+      }
+    }
+
+    await warnIfModelConfigLooksOff(nextConfig, prompter);
+  } else {
+    await prompter.note(`Manteniendo modelo: ${baseConfig.agents?.defaults?.model?.primary}`, "Modelo IA");
   }
 
-  await warnIfModelConfigLooksOff(nextConfig, prompter);
-
+  // Configurar gateway
   const gateway = await configureGatewayForOnboarding({
-    flow,
-    baseConfig,
-    nextConfig,
-    localPort,
-    quickstartGateway,
-    prompter,
-    runtime,
+    flow, baseConfig, nextConfig, localPort, quickstartGateway, prompter, runtime,
   });
   nextConfig = gateway.nextConfig;
   const settings = gateway.settings;
 
-  if (opts.skipChannels ?? opts.skipProviders) {
-    await prompter.note("Skipping channel setup.", "Channels");
-  } else {
-    const quickstartAllowFromChannels =
-      flow === "quickstart"
-        ? listChannelPlugins()
-            .filter((plugin) => plugin.meta.quickstartAllowFrom)
-            .map((plugin) => plugin.id)
-        : [];
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 5: CONFIGURACIÓN EMPRESARIAL
+  // ═══════════════════════════════════════════════════════════════
+  await prompter.note(
+    [
+      "═════════════════════════════════════════",
+      "  🏪 CONFIGURACIÓN EMPRESARIAL",
+      "═════════════════════════════════════════",
+      "",
+      "Configuraremos tu asistente empresarial con:",
+      "",
+      "📱 CANALES PRINCIPALES (comunicación con clientes):",
+      "  • WhatsApp → VENTAS, SOPORTE (dmPolicy: open)",
+      "  • Telegram → ADMIN, MANAGERS (dmPolicy: allowlist)",
+      "",
+      "👥 ROLES:",
+      "  • ADMIN: Control total (1 persona)",
+      "  • MANAGERS: Supervisan, sin permisos de config",
+      "  • VENTAS: Atienden clientes por WhatsApp",
+      "",
+      "🔧 CANALES DE SOPORTE (opcional):",
+      "  • Discord, Slack → Notificaciones, logs",
+    ].join("\n"),
+    "Paso 2"
+  );
+
+  // Verificar si los CANALES están configurados (no solo la empresa)
+  const hasTelegramConfig = Boolean(
+    nextConfig.channels?.telegram?.botToken &&
+    nextConfig.channels?.telegram?.allowFrom?.length
+  );
+  const hasWhatsAppConfig = Boolean(
+    nextConfig.channels?.whatsapp?.enabled &&
+    nextConfig.channels?.whatsapp?.accounts &&
+    Object.keys(nextConfig.channels?.whatsapp?.accounts || {}).length > 0
+  );
+  const channelsFullyConfigured = hasTelegramConfig && hasWhatsAppConfig;
+
+  const enterpriseConfigured = hasEnterpriseConfigured(baseConfig);
+  let skipEnterprise = false;
+
+  // Solo saltar si AMBOS empresa Y canales están configurados
+  if (keepExisting && enterpriseConfigured && channelsFullyConfigured) {
+    skipEnterprise = await askKeepOrModify(
+      prompter,
+      "Config. Empresarial",
+      `${baseConfig.enterprise?.personality?.businessName || "configurado"} (canales listos)`
+    );
+  } else if (keepExisting && enterpriseConfigured) {
+    // Empresa configurada pero canales incompletos - preguntar qué hacer
+    await prompter.note(
+      [
+        `Empresa: ${baseConfig.enterprise?.personality?.businessName || "Configurada"}`,
+        "",
+        "Estado de canales:",
+        `  Telegram: ${hasTelegramConfig ? "✅ Configurado" : "❌ Falta configurar"}`,
+        `  WhatsApp: ${hasWhatsAppConfig ? "✅ Configurado" : "❌ Falta configurar"}`,
+      ].join("\n"),
+      "Canales incompletos"
+    );
+    // No saltar, ejecutar el wizard
+    skipEnterprise = false;
+  }
+
+  if (!skipEnterprise) {
+    const { runEnterpriseWizard } = await import("./onboarding-enterprise.js");
+    nextConfig = await runEnterpriseWizard(nextConfig, prompter, runtime);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 6: CANALES DE SOPORTE (Discord, Slack, etc.)
+  // ═══════════════════════════════════════════════════════════════
+  await prompter.note(
+    [
+      "═════════════════════════════════════════",
+      "  🔧 CANALES DE SOPORTE/INTEGRACIÓN",
+      "═════════════════════════════════════════",
+      "",
+      "Podés configurar canales adicionales para:",
+      "  • Notificaciones del sistema",
+      "  • Logs de actividad",
+      "  • Alertas de seguridad",
+      "  • Integración con el equipo",
+    ].join("\n"),
+    "Paso 3"
+  );
+
+  const wantsSupportChannels = await prompter.confirm({
+    message: "¿Configurar canales de soporte? (Discord, Slack)",
+    initialValue: false,
+  });
+
+  if (wantsSupportChannels && !(opts.skipChannels ?? opts.skipProviders)) {
+    // Usar el setupChannels normal para configurar Discord/Slack
     nextConfig = await setupChannels(nextConfig, runtime, prompter, {
       allowSignalInstall: true,
-      forceAllowFromChannels: quickstartAllowFromChannels,
-      skipDmPolicyPrompt: flow === "quickstart",
-      skipConfirm: flow === "quickstart",
-      quickstartDefaults: flow === "quickstart",
+      skipDmPolicyPrompt: true,
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 7: GUARDAR Y SKILLS
+  // ═══════════════════════════════════════════════════════════════
   await writeConfigFile(nextConfig);
   logConfigUpdated(runtime);
   await ensureWorkspaceAndSessions(workspaceDir, runtime, {
     skipBootstrap: Boolean(nextConfig.agents?.defaults?.skipBootstrap),
   });
 
-  if (opts.skipSkills) {
-    await prompter.note("Skipping skills setup.", "Skills");
-  } else {
+  // Skills recomendadas para empresas
+  if (!opts.skipSkills) {
+    await prompter.note(
+      [
+        "═════════════════════════════════════════",
+        "  🔧 SKILLS RECOMENDADAS",
+        "═════════════════════════════════════════",
+        "",
+        "Skills útiles para tu empresa:",
+        "  ✅ wacli - Contactar clientes por WhatsApp",
+        "  ✅ weather - Consulta de clima",
+        "  ✅ summarize - Resumir documentos",
+        "",
+        "Opcionales:",
+        "  • notion - CRM interno",
+        "  • slack - Comunicación equipo",
+        "  • github - Soporte técnico",
+      ].join("\n"),
+      "Paso 4"
+    );
+
     nextConfig = await setupSkills(nextConfig, workspaceDir, runtime, prompter);
   }
 
-  // Setup hooks (session memory on /new)
+  // Hooks
   nextConfig = await setupInternalHooks(nextConfig, runtime, prompter);
 
-  // ============================================================
-  // CONFIGURACIÓN EMPRESARIAL (Integrada en el flujo)
-  // ============================================================
-  await prompter.note(
-    [
-      "",
-      "═════════════════════════════════════════",
-      "  🏪 CONFIGURACIÓN EMPRESARIAL",
-      "═════════════════════════════════════════",
-      "",
-      "Ahora configuraremos las personalidades de tu",
-      "asistente para diferentes funciones de tu negocio.",
-      "",
-    ].join("\n"),
-    "Continuando..."
-  );
-
-  // Ejecutar wizard empresarial
-  nextConfig = await runEnterpriseWizard(nextConfig, prompter);
-
-  // Aplicar metadatos y guardar configuración final
+  // ═══════════════════════════════════════════════════════════════
+  // FASE 8: FINALIZACIÓN
+  // ═══════════════════════════════════════════════════════════════
   nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
   await writeConfigFile(nextConfig);
   logConfigUpdated(runtime);
 
   const { launchedTui } = await finalizeOnboardingWizard({
-    flow,
-    opts,
-    baseConfig,
-    nextConfig,
-    workspaceDir,
-    settings,
-    prompter,
-    runtime,
-  });
-  if (launchedTui) {
-    return;
-  }
-
-  // ============================================================
-  // CONFIGURACIÓN EMPRESARIAL (opcional)
-  // ============================================================
-
-  const wantsEnterprise = await prompter.confirm({
-    message: "¿Querés configurar personalidad empresarial? (ventas, admin, etc.)",
-    initialValue: false,
+    flow, opts, baseConfig, nextConfig, workspaceDir, settings, prompter, runtime,
   });
 
-  if (wantsEnterprise) {
-    nextConfig = await runEnterpriseWizard(nextConfig, prompter);
-    await writeConfigFile(nextConfig);
-    await prompter.note(
-      [
-        "✅ Configuración empresarial completada.",
-        "",
-        "Personalidades configuradas:",
-        "- VENTAS: Para WhatsApp/Discord público",
-        "- ADMIN: Para Telegram privado",
-        "",
-        "Podés editar la configuración en:",
-        "~/.openclaw/config.json",
-      ].join("\n"),
-      "Empresa"
-    );
-  }
+  if (launchedTui) return;
 }
