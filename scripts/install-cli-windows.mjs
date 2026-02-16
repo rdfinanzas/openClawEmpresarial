@@ -2,10 +2,11 @@
 /**
  * Postinstall script para Windows
  * Crea comandos globales 'agento' y 'openclaw' automáticamente
- * Detecta primera instalación y ofrece ejecutar el wizard
+ * Detecta primera instalación y ejecuta el wizard
+ * Al final abre el navegador en la página de login
  */
 
-import { writeFileSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync, existsSync, mkdirSync, readFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
@@ -117,7 +118,43 @@ if (!existsSync(configPath)) {
   wizard.on("close", (code) => {
     if (code === 0) {
       console.log("\n✓ Configuración completada!");
-      console.log("  Ejecuta 'agento gateway start' para iniciar el gateway.\n");
+
+      // Leer configuración para obtener puerto y token
+      try {
+        const configData = readFileSync(configPath, "utf-8");
+        const config = JSON.parse(configData);
+        const port = config.gateway?.port || 18789;
+        const token = config.gateway?.auth?.token || "";
+
+        console.log("  Iniciando gateway...\n");
+
+        // Iniciar el gateway en background
+        const gateway = spawn("node", [agentoPath, "gateway"], {
+          stdio: "ignore",
+          cwd: projectRoot,
+          detached: true,
+          shell: true
+        });
+        gateway.unref();
+
+        // Esperar un momento y abrir el navegador
+        setTimeout(() => {
+          const loginUrl = token
+            ? "http://localhost:" + port + "/admin/login?token=" + token
+            : "http://localhost:" + port + "/admin/login";
+
+          console.log("  Abriendo navegador: " + loginUrl + "\n");
+
+          // Abrir navegador
+          spawn("cmd", ["/c", "start", "", loginUrl], {
+            stdio: "ignore",
+            detached: true
+          });
+        }, 3000);
+
+      } catch (err) {
+        console.log("  Ejecuta 'agento gateway start' para iniciar el gateway.\n");
+      }
     }
     process.exit(code || 0);
   });
