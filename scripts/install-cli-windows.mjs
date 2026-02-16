@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Postinstall script para Windows
- * Instala CLI y ejecuta el wizard automáticamente si no hay config
+ * Instala CLI y ejecuta el wizard en nueva ventana
  */
 
 import { writeFileSync, existsSync, mkdirSync, readFileSync } from "fs";
@@ -69,41 +69,33 @@ if (existsSync(configPath)) {
   process.exit(0);
 }
 
-// Ejecutar wizard en la misma ventana con input/output directos
-const wizard = spawn("node", [agentoPath, "onboard"], {
-  cwd: projectRoot,
-  stdio: ["inherit", "inherit", "inherit"],
-  env: { ...process.env, FORCE_COLOR: "1", TERM: "xterm-256color" }
+// Crear script temporal que ejecuta wizard y luego inicia gateway
+const tempScript = resolve(projectRoot, "run-wizard.cmd");
+const scriptContent = `
+@echo off
+cd /d "${projectRoot}"
+node agento.mjs onboard
+if exist "${configPath}" (
+    echo.
+    echo Iniciando gateway...
+    start /b node agento.mjs gateway
+    timeout /t 3 /nobreak >nul
+    for /f "tokens=*" %%i in ('type "${configPath}" ^| findstr /c:"port" ^| findstr /r "[0-9]"') do set PORT=%%i
+    for /f "tokens=*" %%i in ('type "${configPath}" ^| findstr /c:"token"') do set TOKEN=%%i
+    start http://localhost:18789/chat?token=
+)
+exit
+`;
+
+try {
+  writeFileSync(tempScript, scriptContent.trim(), "ascii");
+} catch {}
+
+// Abrir wizard en nueva ventana
+spawn("cmd", ["/c", "start", "cmd", "/k", tempScript], {
+  stdio: "ignore",
+  detached: true
 });
 
-wizard.on("close", (code) => {
-  if (code === 0 && existsSync(configPath)) {
-    try {
-      const configData = readFileSync(configPath, "utf-8");
-      const config = JSON.parse(configData);
-      const port = config.gateway?.port || 18789;
-      const token = config.gateway?.auth?.token || "";
-
-      // Iniciar gateway
-      spawn("node", [agentoPath, "gateway"], {
-        stdio: "ignore",
-        cwd: projectRoot,
-        detached: true
-      });
-
-      // Abrir navegador
-      setTimeout(() => {
-        const loginUrl = token
-          ? "http://localhost:" + port + "/chat?token=" + token
-          : "http://localhost:" + port + "/admin/login";
-        spawn("cmd", ["/c", "start", "", loginUrl], { stdio: "ignore", detached: true });
-      }, 3000);
-    } catch {}
-  }
-  process.exit(code || 0);
-});
-
-wizard.on("error", (err) => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+// Cerrar esta ventana inmediatamente
+process.exit(0);
