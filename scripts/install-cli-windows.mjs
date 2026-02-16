@@ -69,16 +69,32 @@ if (existsSync(configPath)) {
   process.exit(0);
 }
 
-// Ejecutar wizard automáticamente
-const wizard = spawn("node", [agentoPath, "onboard"], {
-  stdio: "inherit",
-  cwd: projectRoot,
-  shell: true
+// Abrir wizard en nueva ventana de terminal
+const cmdArgs = [
+  "/c",
+  "start",
+  "cmd",
+  "/k",
+  "node",
+  agentoPath,
+  "onboard"
+];
+
+spawn("cmd", cmdArgs, {
+  stdio: "ignore",
+  detached: true
 });
 
-wizard.on("close", (code) => {
-  if (code === 0 && existsSync(configPath)) {
-    // Leer config para obtener puerto y token
+// Esperar a que se cree el config y luego iniciar gateway
+let attempts = 0;
+const maxAttempts = 300; // 5 minutos máximo
+
+const checkAndStart = setInterval(() => {
+  attempts++;
+
+  if (existsSync(configPath)) {
+    clearInterval(checkAndStart);
+
     try {
       const configData = readFileSync(configPath, "utf-8");
       const config = JSON.parse(configData);
@@ -86,13 +102,12 @@ wizard.on("close", (code) => {
       const token = config.gateway?.auth?.token || "";
 
       // Iniciar gateway
-      const gateway = spawn("node", [agentoPath, "gateway"], {
+      spawn("node", [agentoPath, "gateway"], {
         stdio: "ignore",
         cwd: projectRoot,
         detached: true,
         shell: true
       });
-      gateway.unref();
 
       // Abrir navegador después de 3 segundos
       setTimeout(() => {
@@ -103,9 +118,10 @@ wizard.on("close", (code) => {
       }, 3000);
     } catch {}
   }
-  process.exit(code || 0);
-});
 
-wizard.on("error", () => {
-  process.exit(1);
-});
+  if (attempts >= maxAttempts) {
+    clearInterval(checkAndStart);
+  }
+}, 1000);
+
+process.exit(0);
