@@ -55,12 +55,31 @@ export async function loginWeb(
         isLegacyAuthDir: account.isLegacyAuthDir,
         runtime,
       });
-      console.error(
-        danger(
-          `WhatsApp reported the session is logged out. Cleared cached web session; please rerun ${formatCliCommand("openclaw channels login")} and scan the QR again.`,
+      console.log(
+        info(
+          "Sesion anterior expirada. Generando nuevo QR...",
         ),
       );
-      throw new Error("Session logged out; cache cleared. Re-run login.", { cause: err });
+      // Reintentar con credenciales limpias (mostrará QR nuevo)
+      try {
+        sock.ws?.close();
+      } catch {
+        // ignore
+      }
+      const retry = await createWaSocket(true, verbose, {
+        authDir: account.authDir,
+      });
+      try {
+        await wait(retry);
+        console.log(success("✅ Linked! Credentials saved for future sends."));
+        return;
+      } catch (retryErr) {
+        const formatted = formatError(retryErr);
+        console.error(danger(`WhatsApp login failed after retry: ${formatted}`));
+        throw new Error(formatted, { cause: retryErr });
+      } finally {
+        setTimeout(() => retry.ws?.close(), 500);
+      }
     }
     const formatted = formatError(err);
     console.error(danger(`WhatsApp Web connection ended before fully opening. ${formatted}`));
