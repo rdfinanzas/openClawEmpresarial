@@ -123,6 +123,7 @@ export async function createWaSocket(
   });
 
   sock.ev.on("creds.update", () => enqueueSaveCreds(authDir, saveCreds, sessionLogger));
+  let lastQrPrinted = false;
   sock.ev.on(
     "connection.update",
     (update: Partial<import("@whiskeysockets/baileys").ConnectionState>) => {
@@ -131,7 +132,16 @@ export async function createWaSocket(
         if (qr) {
           opts.onQr?.(qr);
           if (printQr) {
-            console.log("Scan this QR in WhatsApp (Linked Devices):");
+            if (lastQrPrinted) {
+              // Limpiar líneas del QR anterior (mover cursor arriba y borrar)
+              for (let i = 0; i < 18; i++) {
+                process.stdout.write("\x1b[A\x1b[2K");
+              }
+              console.log("\x1b[33mQR actualizado (el anterior expiro):\x1b[0m");
+            } else {
+              console.log("Scan this QR in WhatsApp (Linked Devices):");
+              lastQrPrinted = true;
+            }
             qrcode.generate(qr, { small: true });
           }
         }

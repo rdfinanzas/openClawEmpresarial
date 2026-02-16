@@ -156,12 +156,10 @@ export async function startWebLoginWithQr(
     sock = await createWaSocket(false, Boolean(opts.verbose), {
       authDir: account.authDir,
       onQr: (qr: string) => {
-        if (pendingQr) {
-          return;
-        }
+        // Actualizar QR cada vez que llega uno nuevo (puede ser refresh por timeout)
         pendingQr = qr;
         const current = activeLogins.get(account.accountId);
-        if (current && !current.qr) {
+        if (current) {
           current.qr = qr;
         }
         clearTimeout(qrTimer);
