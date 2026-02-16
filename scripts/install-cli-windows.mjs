@@ -69,60 +69,12 @@ if (existsSync(configPath)) {
   process.exit(0);
 }
 
-// Crear script que ejecuta wizard y luego inicia gateway
-const tempScript = resolve(projectRoot, "run-wizard.cmd");
-const scriptContent = `@echo off
-title Agento Setup
-cd /d "${projectRoot}"
-echo.
-echo ========================================
-echo  Agento - Configuracion inicial
-echo ========================================
-echo.
-echo Ejecutando wizard de configuracion...
-echo.
-node agento.mjs onboard
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo [ERROR] El wizard fallo. Presiona una tecla para cerrar.
-    pause >nul
-    exit /b 1
-)
-if not exist "${configPath}" (
-    echo.
-    echo [INFO] No se completo la configuracion.
-    pause
-    exit /b 0
-)
-echo.
-echo ========================================
-echo  Iniciando gateway...
-echo ========================================
-echo.
-start "" node agento.mjs gateway
-echo Esperando que inicie el gateway...
-ping -n 4 127.0.0.1 >nul
-echo.
-echo Abriendo navegador...
-start http://localhost:18789
-echo.
-echo ========================================
-echo  Listo! El gateway esta corriendo.
-echo  Podes cerrar esta ventana.
-echo ========================================
-echo.
-pause
-`;
-
-try {
-  writeFileSync(tempScript, scriptContent.trim(), "ascii");
-} catch {}
-
-// Abrir wizard en nueva ventana
-spawn("cmd", ["/c", "start", "cmd", "/k", tempScript], {
+// Abrir wizard en nueva ventana usando el script run-wizard.cmd
+const runWizardScript = resolve(projectRoot, "run-wizard.cmd");
+spawn("cmd", ["/c", "start", "cmd", "/k", runWizardScript], {
   stdio: "ignore",
   detached: true
 });
 
-// Salir silenciosamente (no cerrar ventana de pnpm)
+// Salir silenciosamente
 process.exit(0);
